@@ -14,16 +14,18 @@ export function ThesisSubmission() {
       version: '初稿',
       fileName: '毕业论文_初稿_张三.pdf',
       submitDate: '2025-05-10',
-      status: '已审阅',
+      status: '一审已通过',
+      reviewStage: '一审',
       feedback: '论文结构完整，但第三章的实验部分需要补充更多数据。图表格式需要统一。',
-      score: null,
+      score: 78,
     },
     {
       id: '2',
       version: '修改稿',
       fileName: '毕业论文_修改稿_张三.pdf',
       submitDate: '2025-05-18',
-      status: '审阅中',
+      status: '二审中',
+      reviewStage: '二审',
       feedback: null,
       score: null,
     },
@@ -34,18 +36,35 @@ export function ThesisSubmission() {
       <Card>
         <CardHeader>
           <CardTitle>论文提交</CardTitle>
-          <CardDescription>提交您的毕业论文各版本文档</CardDescription>
+          <CardDescription>提交您的毕业论文各版本文档，经过一审、二审后方可参加答辩</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg mb-6">
             <h4 className="mb-2">论文提交要求：</h4>
             <ul className="space-y-1 text-sm list-disc list-inside text-gray-700">
-              <li>初稿提交截止时间：2025-05-10</li>
+              <li>初稿提交截止时间：2025-05-10（进入一审）</li>
+              <li>一审通过后修改，提交修改稿进入二审</li>
+              <li>二审通过后提交终稿</li>
               <li>终稿提交截止时间：2025-05-30</li>
               <li>论文字数不少于12000字（不含代码和附录）</li>
               <li>格式要求：严格按照学校论文模板排版</li>
               <li>文件格式：PDF格式</li>
             </ul>
+          </div>
+
+          <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg mb-6">
+            <h4 className="mb-2">论文审核流程：</h4>
+            <div className="flex items-center gap-2 text-sm">
+              <Badge className="bg-blue-600">初稿提交</Badge>
+              <span>→</span>
+              <Badge className="bg-green-600">一审</Badge>
+              <span>→</span>
+              <Badge className="bg-orange-600">修改后二审</Badge>
+              <span>→</span>
+              <Badge className="bg-purple-600">终稿</Badge>
+              <span>→</span>
+              <Badge className="bg-indigo-600">答辩</Badge>
+            </div>
           </div>
 
           <Tabs defaultValue="submit" className="space-y-6">
@@ -70,8 +89,8 @@ export function ThesisSubmission() {
                   id="version"
                   className="w-full mt-2 px-3 py-2 border rounded-md"
                 >
-                  <option>初稿</option>
-                  <option>修改稿</option>
+                  <option>初稿（一审）</option>
+                  <option>修改稿（二审）</option>
                   <option>终稿</option>
                 </select>
               </div>
@@ -119,16 +138,26 @@ export function ThesisSubmission() {
                       <div className="flex items-center gap-3">
                         <FileText className="size-8 text-blue-600" />
                         <div>
-                          <CardTitle className="text-lg">{version.version}</CardTitle>
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{version.version}</CardTitle>
+                            <Badge variant="outline">{version.reviewStage}</Badge>
+                          </div>
                           <p className="text-sm text-gray-500 mt-1">
                             提交时间：{version.submitDate}
                           </p>
                         </div>
                       </div>
                       <Badge
-                        variant={version.status === '已审阅' ? 'default' : 'secondary'}
+                        variant={version.status.includes('通过') ? 'default' : 'secondary'}
+                        className={
+                          version.status.includes('通过') 
+                            ? 'bg-green-600' 
+                            : version.status.includes('审中')
+                            ? 'bg-blue-600'
+                            : ''
+                        }
                       >
-                        {version.status === '审阅中' && <Clock className="size-3 mr-1" />}
+                        {version.status === '审中' && <Clock className="size-3 mr-1" />}
                         {version.status}
                       </Badge>
                     </div>
@@ -147,7 +176,7 @@ export function ThesisSubmission() {
                         <div className="flex items-start gap-2">
                           <MessageSquare className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
                           <div>
-                            <h4 className="text-sm mb-1">指导教师反馈：</h4>
+                            <h4 className="text-sm mb-1">{version.reviewStage}审阅意见：</h4>
                             <p className="text-sm text-gray-700">{version.feedback}</p>
                           </div>
                         </div>
@@ -156,7 +185,7 @@ export function ThesisSubmission() {
 
                     {version.score !== null && (
                       <div>
-                        <Label>评分</Label>
+                        <Label>{version.reviewStage}评分</Label>
                         <p className="text-2xl mt-1">{version.score}分</p>
                       </div>
                     )}

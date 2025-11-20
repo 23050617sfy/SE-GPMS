@@ -5,8 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { GraduationCap, LogOut, FileText, Users, CheckCircle2, Calendar } from 'lucide-react';
 import { TopicManagement } from './teacher/TopicManagement';
 import { StudentManagement } from './teacher/StudentManagement';
-import { ProposalReview } from './teacher/ProposalReview';
-import { ThesisReview } from './teacher/ThesisReview';
+import { ReviewCenter } from './teacher/ReviewCenter';
 import { DefenseManagement } from './teacher/DefenseManagement';
 
 interface User {
@@ -54,12 +53,11 @@ export function TeacherDashboard({ user, onLogout }: TeacherDashboardProps) {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="overview">总览</TabsTrigger>
             <TabsTrigger value="topics">课题管理</TabsTrigger>
             <TabsTrigger value="students">学生管理</TabsTrigger>
-            <TabsTrigger value="proposals">开题审核</TabsTrigger>
-            <TabsTrigger value="thesis">论文评审</TabsTrigger>
+            <TabsTrigger value="reviews">审核评阅</TabsTrigger>
             <TabsTrigger value="defense">答辩管理</TabsTrigger>
           </TabsList>
 
@@ -190,12 +188,8 @@ export function TeacherDashboard({ user, onLogout }: TeacherDashboardProps) {
             <StudentManagement />
           </TabsContent>
 
-          <TabsContent value="proposals">
-            <ProposalReview />
-          </TabsContent>
-
-          <TabsContent value="thesis">
-            <ThesisReview />
+          <TabsContent value="reviews">
+            <ReviewCenter />
           </TabsContent>
 
           <TabsContent value="defense">

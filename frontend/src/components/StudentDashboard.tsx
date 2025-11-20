@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { TopicSelection } from './student/TopicSelection';
 import { ProposalSubmission } from './student/ProposalSubmission';
+import { MidtermCheck } from './student/MidtermCheck';
 import { ThesisSubmission } from './student/ThesisSubmission';
 import { DefenseSchedule } from './student/DefenseSchedule';
 import { MyProgress } from './student/MyProgress';
@@ -67,8 +68,8 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
             <TabsTrigger value="overview">总览</TabsTrigger>
             <TabsTrigger value="selection">选题</TabsTrigger>
             <TabsTrigger value="proposal">开题</TabsTrigger>
+            <TabsTrigger value="midterm">中期检查</TabsTrigger>
             <TabsTrigger value="thesis">论文提交</TabsTrigger>
-            <TabsTrigger value="defense">答辩</TabsTrigger>
             <TabsTrigger value="progress">我的进度</TabsTrigger>
           </TabsList>
 
@@ -160,6 +161,20 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
+                    <div className="bg-green-100 p-2 rounded-full">
+                      <CheckCircle2 className="size-5 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4>中期检查</h4>
+                        <span className="text-sm text-gray-500">2025-04-28</span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">
+                        中期检查已通过，评分：88分
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
                     <div className="bg-blue-100 p-2 rounded-full">
                       <FileText className="size-5 text-blue-600" />
                     </div>
@@ -169,7 +184,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                         <span className="text-sm text-gray-500">进行中</span>
                       </div>
                       <p className="text-sm text-gray-600 mt-1">
-                        初稿已提交，正在等待导师审阅反馈
+                        一审已通过（78分），修改稿正在二审中
                       </p>
                     </div>
                   </div>
@@ -218,6 +233,10 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
 
           <TabsContent value="proposal">
             <ProposalSubmission />
+          </TabsContent>
+
+          <TabsContent value="midterm">
+            <MidtermCheck />
           </TabsContent>
 
           <TabsContent value="thesis">
