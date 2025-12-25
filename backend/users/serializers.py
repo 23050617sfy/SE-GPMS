@@ -47,11 +47,25 @@ class LoginSerializer(serializers.Serializer):
 
 class ThesisReviewSerializer(serializers.ModelSerializer):
     reviewer_name = serializers.CharField(source='reviewer.first_name', read_only=True)
+    thesis = serializers.PrimaryKeyRelatedField(queryset=Thesis.objects.all(), write_only=True)
 
     class Meta:
         model = ThesisReview
-        fields = ('id', 'stage', 'feedback', 'score', 'result', 'reviewed_at', 'reviewer_name')
+        fields = ('id', 'thesis', 'stage', 'feedback', 'score', 'result', 'reviewed_at', 'reviewer_name')
         read_only_fields = ('id', 'reviewed_at')
+
+    def validate_score(self, value):
+        if value is None:
+            return value
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('score must be between 0 and 100')
+        return value
+
+    def validate_stage(self, value):
+        allowed = ['first_review', 'second_review', 'final_submission']
+        if value not in allowed:
+            raise serializers.ValidationError('invalid stage')
+        return value
 
 
 class ThesisSerializer(serializers.ModelSerializer):

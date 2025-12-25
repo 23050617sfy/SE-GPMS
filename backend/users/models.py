@@ -58,7 +58,7 @@ class Thesis(models.Model):
         ('final_submission', 'Final Submission'),
     )
 
-    student = models.OneToOneField(User, on_delete=models.CASCADE, related_name='thesis')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='theses')
     title = models.CharField(max_length=255)
     file = models.FileField(upload_to='thesis/%Y/%m/')
     version = models.CharField(max_length=50, default='draft')

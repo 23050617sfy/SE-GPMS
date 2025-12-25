@@ -26,6 +26,24 @@ type Thesis = {
   }[];
 };
 
+const stageLabel = (stage?: string) => {
+  const map: Record<string, string> = {
+    first_review: '一审',
+    second_review: '二审',
+    final_submission: '终稿',
+  };
+  return stage ? map[stage] || stage : '';
+};
+
+const resultLabel = (result?: string) => {
+  const map: Record<string, string> = {
+    pass: '通过',
+    fail: '不通过',
+    revise: '需修改',
+  };
+  return result ? map[result] || result : '';
+};
+
 const stageOptions = [
   { value: 'first_review', label: '初稿（一审）' },
   { value: 'second_review', label: '修改稿（二审）' },
@@ -192,7 +210,7 @@ export function ThesisSubmission() {
                         <div>
                           <div className="flex items-center gap-2">
                             <CardTitle className="text-lg">{thesis.version}</CardTitle>
-                            <Badge variant="outline">{thesis.stage}</Badge>
+                            {stageLabel(thesis.stage) && <Badge variant="outline">{stageLabel(thesis.stage)}</Badge>}
                           </div>
                           <p className="text-sm text-gray-500 mt-1">
                             提交时间：{new Date(thesis.submitted_at).toLocaleString()}
@@ -222,10 +240,13 @@ export function ThesisSubmission() {
                             <div className="flex items-start gap-2">
                               <MessageSquare className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
                               <div>
-                                <h4 className="text-sm mb-1">{rev.stage} 审阅意见</h4>
+                                <h4 className="text-sm mb-1">{stageLabel(rev.stage)} 审阅意见</h4>
                                 <p className="text-sm text-gray-700">{rev.feedback || '暂无意见'}</p>
                                 {rev.score !== null && (
                                   <p className="text-sm text-gray-600 mt-2">评分：{rev.score}分</p>
+                                )}
+                                {resultLabel(rev.result) && (
+                                  <p className="text-sm text-gray-600 mt-1">结果：{resultLabel(rev.result)}</p>
                                 )}
                               </div>
                             </div>

@@ -76,16 +76,7 @@ class ThesisSubmitAPIView(generics.CreateAPIView):
         if request.user.profile.role != 'student':
             return Response({'detail': 'Only students can submit thesis'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Check if thesis already exists for this student
-        existing_thesis = Thesis.objects.filter(student=request.user).first()
-
-        if existing_thesis:
-            # Update existing thesis (allow partial so file or title can be changed)
-            serializer = self.get_serializer(existing_thesis, data=request.data, partial=True)
-        else:
-            # Create new thesis
-            serializer = self.get_serializer(data=request.data)
-
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -101,7 +92,7 @@ class ThesisDetailAPIView(generics.RetrieveUpdateAPIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def get_object(self):
-        return Thesis.objects.get(student=self.request.user)
+        return Thesis.objects.filter(student=self.request.user).order_by('-submitted_at').first()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -160,7 +151,6 @@ class ThesisReviewAPIView(generics.CreateAPIView):
 
         data = request.data.copy()
         data['thesis'] = thesis_id
-        data['reviewer'] = request.user.id
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
