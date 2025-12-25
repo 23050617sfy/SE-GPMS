@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Profile
+from .models import Profile, Thesis, ThesisReview
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -43,3 +43,30 @@ class RegisterSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField()  # student_id or email
     password = serializers.CharField(write_only=True)
+
+
+class ThesisReviewSerializer(serializers.ModelSerializer):
+    reviewer_name = serializers.CharField(source='reviewer.first_name', read_only=True)
+
+    class Meta:
+        model = ThesisReview
+        fields = ('id', 'stage', 'feedback', 'score', 'result', 'reviewed_at', 'reviewer_name')
+        read_only_fields = ('id', 'reviewed_at')
+
+
+class ThesisSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.first_name', read_only=True)
+    student_id = serializers.CharField(source='student.username', read_only=True)
+    reviews = ThesisReviewSerializer(many=True, read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Thesis
+        fields = ('id', 'student_id', 'student_name', 'title', 'file', 'file_url', 'version', 'status', 'stage', 'submitted_at', 'updated_at', 'reviews')
+        read_only_fields = ('id', 'submitted_at', 'updated_at')
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None

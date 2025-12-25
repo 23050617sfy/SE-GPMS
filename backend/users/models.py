@@ -38,3 +38,59 @@ def save_user_profile(sender, instance, **kwargs):
     except OperationalError:
         # If the profile table does not exist yet, ignore.
         pass
+
+
+class Thesis(models.Model):
+    STATUS_CHOICES = (
+        ('draft', 'Draft'),
+        ('first_review', 'First Review'),
+        ('first_pass', 'First Review Pass'),
+        ('first_fail', 'First Review Fail'),
+        ('second_review', 'Second Review'),
+        ('second_pass', 'Second Review Pass'),
+        ('second_fail', 'Second Review Fail'),
+        ('final', 'Final'),
+    )
+
+    STAGE_CHOICES = (
+        ('first_review', 'First Review'),
+        ('second_review', 'Second Review'),
+        ('final_submission', 'Final Submission'),
+    )
+
+    student = models.OneToOneField(User, on_delete=models.CASCADE, related_name='thesis')
+    title = models.CharField(max_length=255)
+    file = models.FileField(upload_to='thesis/%Y/%m/')
+    version = models.CharField(max_length=50, default='draft')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    stage = models.CharField(max_length=30, choices=STAGE_CHOICES, default='first_review')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.student.username} - {self.title}'
+
+    class Meta:
+        ordering = ['-submitted_at']
+
+
+class ThesisReview(models.Model):
+    REVIEW_RESULT_CHOICES = (
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+        ('revise', 'Revise Required'),
+    )
+
+    thesis = models.ForeignKey(Thesis, on_delete=models.CASCADE, related_name='reviews')
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='reviews')
+    stage = models.CharField(max_length=30)
+    feedback = models.TextField(blank=True, null=True)
+    score = models.IntegerField(null=True, blank=True)
+    result = models.CharField(max_length=20, choices=REVIEW_RESULT_CHOICES)
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Review of {self.thesis.student.username} - {self.stage}'
+
+    class Meta:
+        ordering = ['-reviewed_at']
