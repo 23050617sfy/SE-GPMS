@@ -1,66 +1,89 @@
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { CheckCircle2, Circle, Clock, AlertCircle } from 'lucide-react';
+import { apiFetch } from '../../utils/api';
 
 export function MyProgress() {
+  const [thesis, setThesis] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const stagesStatic = [
+    { id: 1, name: '选题', status: 'completed', completedDate: null, description: '已选择课题并确认指导教师', score: null },
+    { id: 2, name: '开题报告', status: 'completed', completedDate: null, description: '开题报告已通过审核', score: null },
+    { id: 3, name: '中期检查', status: 'completed', completedDate: null, description: '中期检查已通过', score: null },
+  ];
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await apiFetch('/api/auth/thesis/detail/');
+        setThesis(data || null);
+      } catch (err: any) {
+        setError(err?.data?.detail || '无法加载论文信息');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const computeStage = (stageKey: string, label: string) => {
+    // default values
+    let status = 'pending';
+    let score: number | null = null;
+    let completedDate: string | null = null;
+    let description = '';
+
+    if (!thesis) {
+      return { name: label, status, completedDate, description, score };
+    }
+
+    const reviews: any[] = thesis.reviews || [];
+    const rev = reviews.find(r => r.stage === stageKey);
+    if (rev) {
+      score = rev.score;
+      completedDate = rev.reviewed_at;
+      if (rev.result === 'pass') {
+        status = 'completed';
+        description = `${label}已通过`;
+      } else if (rev.result === 'revise') {
+        status = 'in-progress';
+        description = `${label}需修改`;
+      } else if (rev.result === 'fail') {
+        status = 'failed';
+        description = `${label}未通过`;
+      }
+      return { name: label, status, completedDate, description, score };
+    }
+
+    // fallback to thesis.status indicators
+    const tstatus: string = thesis.status || '';
+    if (stageKey === 'first_review' && tstatus === 'first_pass') {
+      status = 'completed';
+      description = `${label}已通过`;
+    } else if (stageKey === 'second_review' && tstatus === 'second_pass') {
+      status = 'completed';
+      description = `${label}已通过`;
+    } else if (stageKey === 'final_submission' && tstatus === 'final') {
+      status = 'completed';
+      description = `${label}已通过`;
+    } else if (thesis.stage === stageKey) {
+      status = 'in-progress';
+      description = `${label}审阅中`;
+    }
+
+    return { name: label, status, completedDate, description, score };
+  };
+
   const stages = [
-    {
-      id: 1,
-      name: '选题',
-      status: 'completed',
-      completedDate: '2025-03-15',
-      description: '已选择课题并确认指导教师',
-      score: null,
-    },
-    {
-      id: 2,
-      name: '开题报告',
-      status: 'completed',
-      completedDate: '2025-04-20',
-      description: '开题报告已通过审核',
-      score: 85,
-    },
-    {
-      id: 3,
-      name: '中期检查',
-      status: 'completed',
-      completedDate: '2025-04-28',
-      description: '中期检查已通过',
-      score: 88,
-    },
-    {
-      id: 4,
-      name: '论文初稿（一审）',
-      status: 'completed',
-      completedDate: '2025-05-10',
-      description: '一审已通过',
-      score: 78,
-    },
-    {
-      id: 5,
-      name: '论文修改（二审）',
-      status: 'in-progress',
-      completedDate: null,
-      description: '二审审阅中',
-      score: null,
-    },
-    {
-      id: 6,
-      name: '论文终稿',
-      status: 'pending',
-      completedDate: null,
-      description: '等待二审通过后提交',
-      score: null,
-    },
-    {
-      id: 7,
-      name: '论文答辩',
-      status: 'pending',
-      completedDate: null,
-      description: '等待答辩安排',
-      score: null,
-    },
+    ...stagesStatic,
+    computeStage('first_review', '论文初稿（一审）'),
+    computeStage('second_review', '论文修改（二审）'),
+    computeStage('final_submission', '论文终稿'),
   ];
 
   const completedStages = stages.filter(s => s.status === 'completed').length;
@@ -75,6 +98,8 @@ export function MyProgress() {
         return <Clock className="size-6 text-blue-600" />;
       case 'pending':
         return <Circle className="size-6 text-gray-400" />;
+      case 'failed':
+        return <AlertCircle className="size-6 text-red-600" />;
       default:
         return <Circle className="size-6 text-gray-400" />;
     }
@@ -88,8 +113,25 @@ export function MyProgress() {
         return <Badge className="bg-blue-600">进行中</Badge>;
       case 'pending':
         return <Badge variant="secondary">待开始</Badge>;
+      case 'failed':
+        return <Badge className="bg-red-600">不通过</Badge>;
       default:
         return <Badge variant="secondary">待开始</Badge>;
+    }
+  };
+
+  const formatDateShort = (iso?: string | null) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hour = String(d.getHours()).padStart(2, '0');
+      const minute = String(d.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hour}:${minute}`;
+    } catch (e) {
+      return iso;
     }
   };
 
@@ -140,9 +182,8 @@ export function MyProgress() {
               <div key={stage.id} className="relative">
                 {index !== stages.length - 1 && (
                   <div
-                    className={`absolute left-3 top-12 bottom-0 w-0.5 ${
-                      stage.status === 'completed' ? 'bg-green-600' : 'bg-gray-200'
-                    }`}
+                    className={`absolute left-3 top-12 bottom-0 w-0.5 ${stage.status === 'completed' ? 'bg-green-600' : 'bg-gray-200'
+                      }`}
                   />
                 )}
                 <div className="flex gap-4">
@@ -155,7 +196,7 @@ export function MyProgress() {
                         <h4>{stage.name}</h4>
                         {stage.completedDate && (
                           <p className="text-sm text-gray-500 mt-1">
-                            完成时间：{stage.completedDate}
+                            {stage.name === '论文初稿（一审）' ? '通过时间：' : '完成时间：'}{formatDateShort(stage.completedDate)}
                           </p>
                         )}
                       </div>
