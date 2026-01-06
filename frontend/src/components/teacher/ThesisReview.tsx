@@ -78,6 +78,33 @@ const statusLabel = (status?: string) => {
   return status ? map[status] || '' : '';
 };
 
+const reviewResultLabel = (result?: string) => {
+  const map: Record<string, string> = {
+    pass: '通过',
+    revise: '需修改',
+    fail: '不通过',
+  };
+  return result ? map[result] || result : '';
+};
+
+const reviewResultClass = (result?: string) => {
+  const map: Record<string, string> = {
+    pass: '!bg-green-600 !text-white',
+    revise: '!bg-yellow-400 !text-black',
+    fail: '!bg-red-600 !text-white',
+  };
+  return result ? map[result] || '' : '';
+};
+
+const reviewResultStyle = (result?: string) => {
+  const map: Record<string, { backgroundColor: string; color: string }> = {
+    pass: { backgroundColor: '#15803d', color: '#ffffff' },
+    revise: { backgroundColor: '#f59e0b', color: '#000000' },
+    fail: { backgroundColor: '#dc2626', color: '#ffffff' },
+  };
+  return result ? map[result] || undefined : undefined;
+};
+
 export function ThesisReview() {
   const [theses, setTheses] = useState<Thesis[]>([]);
   const [loading, setLoading] = useState(false);
@@ -227,12 +254,11 @@ export function ThesisReview() {
                             <h4 className="text-sm mb-1">历史审阅意见：</h4>
                             {thesis.reviews.map((rev) => (
                               <div key={rev.id} className="text-sm text-gray-700">
-                                <div className="flex gap-2 items-center">
-                                  <Badge variant="outline">{rev.stage}</Badge>
-                                  <span>结果：{rev.result}</span>
-                                  {rev.score !== null && <span>评分：{rev.score}</span>}
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className={reviewResultClass(rev.result)} style={reviewResultStyle(rev.result)}>{reviewResultLabel(rev.result)}</Badge>
+                                  <Badge variant="outline">{rev.score !== null ? `${rev.score}分` : '—分'}</Badge>
                                 </div>
-                                <p className="text-gray-700 mt-1">{rev.feedback || '暂无意见'}</p>
+                                <p className="text-gray-700 mt-2"><span className="font-medium">评语：</span>{rev.feedback || '暂无意见'}</p>
                               </div>
                             ))}
                           </div>
