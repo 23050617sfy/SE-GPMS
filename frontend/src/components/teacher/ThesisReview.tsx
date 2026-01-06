@@ -82,6 +82,7 @@ export function ThesisReview() {
   const [theses, setTheses] = useState<Thesis[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [usernameFilter, setUsernameFilter] = useState('');
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [selectedThesis, setSelectedThesis] = useState<Thesis | null>(null);
   const [feedback, setFeedback] = useState('');
@@ -89,11 +90,15 @@ export function ThesisReview() {
   const [reviewResult, setReviewResult] = useState<'pass' | 'revise' | 'fail' | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadTheses = async () => {
+  const loadTheses = async (username?: string) => {
     setLoading(true);
     setError('');
     try {
-      const data = await apiFetch('/api/auth/thesis/all-theses/');
+      let url = '/api/auth/thesis/all-theses/';
+      if (username && username.trim() !== '') {
+        url += `?username=${encodeURIComponent(username.trim())}`;
+      }
+      const data = await apiFetch(url);
       setTheses(data || []);
     } catch (err: any) {
       setError(err?.data?.detail || '加载论文列表失败');
@@ -105,6 +110,10 @@ export function ThesisReview() {
   useEffect(() => {
     loadTheses();
   }, []);
+
+  const handleSearch = async () => {
+    await loadTheses(usernameFilter);
+  };
 
   const handleReview = (thesis: Thesis) => {
     setSelectedThesis(thesis);
@@ -154,6 +163,15 @@ export function ThesisReview() {
             </ul>
           </div>
 
+          <div className="flex items-center gap-2 mb-4">
+            <Input
+              placeholder="按用户名搜索（支持部分匹配）"
+              value={usernameFilter}
+              onChange={(e) => setUsernameFilter(e.target.value)}
+            />
+            <Button onClick={handleSearch}>搜索</Button>
+            <Button variant="ghost" onClick={async () => { setUsernameFilter(''); await loadTheses(); }}>重置</Button>
+          </div>
           {loading && <p className="text-sm text-gray-600">加载中...</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
 

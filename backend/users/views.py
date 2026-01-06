@@ -125,7 +125,11 @@ class AllThesesListAPIView(generics.ListAPIView):
     def get_queryset(self):
         # Only teachers and admins can see all theses
         if self.request.user.profile.role in ['teacher', 'admin']:
-            return Thesis.objects.all()
+            qs = Thesis.objects.all()
+            username = self.request.query_params.get('username')
+            if username:
+                qs = qs.filter(student__username__icontains=username)
+            return qs
         return Thesis.objects.none()
 
     def get_serializer_context(self):
