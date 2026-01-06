@@ -165,7 +165,7 @@ export function ThesisReview() {
 
           <div className="flex items-center gap-2 mb-4">
             <Input
-              placeholder="按用户名搜索（支持部分匹配）"
+              placeholder="按用户名或姓名搜索（支持部分匹配）"
               value={usernameFilter}
               onChange={(e) => setUsernameFilter(e.target.value)}
             />
@@ -190,7 +190,7 @@ export function ThesisReview() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <CardTitle className="text-lg">
-                            {thesis.student_name || thesis.student_id}
+                            {thesis.student_name ? `${thesis.student_name}(${thesis.student_id})` : thesis.student_id}
                           </CardTitle>
                           {thesis.version && <Badge variant="outline">{thesis.version}</Badge>}
                           {stageLabel(thesis.stage) && <Badge className="bg-blue-600">{stageLabel(thesis.stage)}</Badge>}
@@ -260,7 +260,9 @@ export function ThesisReview() {
           <DialogHeader>
             <DialogTitle>论文审阅</DialogTitle>
             <DialogDescription>
-              {selectedThesis?.student_name || selectedThesis?.student_id} - {selectedThesis?.title}
+              {selectedThesis
+                ? (selectedThesis.student_name ? `${selectedThesis.student_name}(${selectedThesis.student_id})` : selectedThesis.student_id)
+                : ''} - {selectedThesis?.title}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

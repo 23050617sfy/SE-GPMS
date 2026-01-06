@@ -8,6 +8,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ThesisSerializer, ThesisReviewSerializer
 from .models import Thesis, ThesisReview
+from django.db.models import Q
+from django.db.models.functions import Concat
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 
@@ -126,9 +128,17 @@ class AllThesesListAPIView(generics.ListAPIView):
         # Only teachers and admins can see all theses
         if self.request.user.profile.role in ['teacher', 'admin']:
             qs = Thesis.objects.all()
-            username = self.request.query_params.get('username')
-            if username:
-                qs = qs.filter(student__username__icontains=username)
+            query = self.request.query_params.get('username')
+            if query:
+                q = query.strip()
+                # annotate concatenated last_name+first_name for full-name search
+                qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
+                qs = qs.filter(
+                    Q(student__username__icontains=q) |
+                    Q(student__first_name__icontains=q) |
+                    Q(student__last_name__icontains=q) |
+                    Q(student_full_name__icontains=q)
+                )
             return qs
         return Thesis.objects.none()
 

@@ -69,7 +69,7 @@ class ThesisReviewSerializer(serializers.ModelSerializer):
 
 
 class ThesisSerializer(serializers.ModelSerializer):
-    student_name = serializers.CharField(source='student.first_name', read_only=True)
+    student_name = serializers.SerializerMethodField()
     student_id = serializers.CharField(source='student.username', read_only=True)
     reviews = ThesisReviewSerializer(many=True, read_only=True)
     file_url = serializers.SerializerMethodField()
@@ -84,3 +84,16 @@ class ThesisSerializer(serializers.ModelSerializer):
         if obj.file and request:
             return request.build_absolute_uri(obj.file.url)
         return None
+
+    def get_student_name(self, obj):
+        # For Chinese names prefer last_name + first_name without space
+        first = getattr(obj.student, 'first_name', '') or ''
+        last = getattr(obj.student, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            return full
+        # fallback to get_full_name or username
+        full_name = obj.student.get_full_name().strip()
+        if full_name:
+            return full_name
+        return obj.student.username
