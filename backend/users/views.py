@@ -50,7 +50,17 @@ class LoginAPIView(APIView):
             return Response({'detail': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
 
         token, _ = Token.objects.get_or_create(user=user)
-        return Response({'token': token.key, 'user': UserSerializer(user).data})
+        user_data = UserSerializer(user).data
+        # add display name: prefer last_name+first_name for Chinese style
+        first = getattr(user, 'first_name', '') or ''
+        last = getattr(user, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            user_data['name'] = full
+        else:
+            full_name = user.get_full_name().strip()
+            user_data['name'] = full_name if full_name else user.username
+        return Response({'token': token.key, 'user': user_data})
 
 
 class MeAPIView(APIView):
@@ -59,7 +69,16 @@ class MeAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         user = request.user
-        return Response({'user': UserSerializer(user).data})
+        user_data = UserSerializer(user).data
+        first = getattr(user, 'first_name', '') or ''
+        last = getattr(user, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            user_data['name'] = full
+        else:
+            full_name = user.get_full_name().strip()
+            user_data['name'] = full_name if full_name else user.username
+        return Response({'user': user_data})
 
 
 class ThesisSubmitAPIView(generics.CreateAPIView):

@@ -39,7 +39,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       localStorage.setItem('token', res.token);
       const user = {
         id: res.user.student_id || res.user.id || res.user.email || '',
-        name: res.user.email || res.user.student_id || '',
+        name: res.user.name || res.user.email || res.user.student_id || '',
         role: res.user.role as 'student' | 'teacher' | 'admin',
         email: res.user.email || '',
       };
