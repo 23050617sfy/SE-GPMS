@@ -240,13 +240,19 @@ export function ThesisReview() {
                       </div>
                     )}
 
-                    <Button
-                      className="w-full"
-                      onClick={() => handleReview(thesis)}
-                    >
-                      <MessageSquare className="size-4 mr-2" />
-                      提交审阅
-                    </Button>
+                    {thesis.reviews && thesis.reviews.length > 0 ? (
+                      <div className="w-full py-4 text-center text-sm text-gray-600 bg-gray-50 rounded">
+                        已审阅
+                      </div>
+                    ) : (
+                      <Button
+                        className="w-full"
+                        onClick={() => handleReview(thesis)}
+                      >
+                        <MessageSquare className="size-4 mr-2" />
+                        提交审阅
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}
