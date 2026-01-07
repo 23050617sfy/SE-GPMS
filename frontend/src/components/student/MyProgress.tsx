@@ -6,7 +6,7 @@ import { CheckCircle2, Circle, Clock, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
 
 export function MyProgress() {
-  const [thesis, setThesis] = useState<any | null>(null);
+  const [theses, setTheses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -20,8 +20,8 @@ export function MyProgress() {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await apiFetch('/api/auth/thesis/detail/');
-        setThesis(data || null);
+        const list = await apiFetch('/api/auth/thesis/my-thesis/');
+        setTheses(Array.isArray(list) ? list : []);
       } catch (err: any) {
         setError(err?.data?.detail || '无法加载论文信息');
       } finally {
@@ -38,42 +38,64 @@ export function MyProgress() {
     let completedDate: string | null = null;
     let description = '';
 
-    if (!thesis) {
+    if (!theses || theses.length === 0) {
       return { name: label, status, completedDate, description, score };
     }
 
-    const reviews: any[] = thesis.reviews || [];
-    const rev = reviews.find(r => r.stage === stageKey);
-    if (rev) {
-      score = rev.score;
-      completedDate = rev.reviewed_at;
-      if (rev.result === 'pass') {
+    // 聚合所有论文记录的评审信息
+    const allReviews: any[] = theses.flatMap((t) => Array.isArray(t.reviews) ? t.reviews : []);
+    const reviewsOfStage = allReviews
+      .filter((r) => r.stage === stageKey)
+      .sort((a, b) => new Date(b.reviewed_at).getTime() - new Date(a.reviewed_at).getTime());
+
+    if (reviewsOfStage.length > 0) {
+      // 优先使用最近的一条
+      const latest = reviewsOfStage[0];
+      score = latest.score;
+      completedDate = latest.reviewed_at;
+      if (latest.result === 'pass') {
         status = 'completed';
         description = `${label}已通过`;
-      } else if (rev.result === 'revise') {
+      } else if (latest.result === 'revise') {
         status = 'in-progress';
         description = `${label}需修改`;
-      } else if (rev.result === 'fail') {
+      } else if (latest.result === 'fail') {
         status = 'failed';
         description = `${label}未通过`;
       }
       return { name: label, status, completedDate, description, score };
     }
 
-    // fallback to thesis.status indicators
-    const tstatus: string = thesis.status || '';
-    if (stageKey === 'first_review' && tstatus === 'first_pass') {
-      status = 'completed';
-      description = `${label}已通过`;
-    } else if (stageKey === 'second_review' && tstatus === 'second_pass') {
-      status = 'completed';
-      description = `${label}已通过`;
-    } else if (stageKey === 'final_submission' && tstatus === 'final') {
-      status = 'completed';
-      description = `${label}已通过`;
-    } else if (thesis.stage === stageKey) {
-      status = 'in-progress';
-      description = `${label}审阅中`;
+    // 无该阶段评审记录时：根据综合状态/当前阶段推断
+    const latestThesis = theses[0]; // 后端按提交时间倒序
+    const latestStatus: string = latestThesis?.status || '';
+    const latestStage: string = latestThesis?.stage || '';
+
+    if (stageKey === 'first_review') {
+      // 如果任一论文状态已到达或超过一审通过
+      if (theses.some((t) => t.status === 'first_pass')) {
+        status = 'completed';
+        description = `${label}已通过`;
+      } else if (latestStage === stageKey) {
+        status = 'in-progress';
+        description = `${label}审阅中`;
+      }
+    } else if (stageKey === 'second_review') {
+      if (theses.some((t) => t.status === 'second_pass')) {
+        status = 'completed';
+        description = `${label}已通过`;
+      } else if (latestStage === stageKey) {
+        status = 'in-progress';
+        description = `${label}审阅中`;
+      }
+    } else if (stageKey === 'final_submission') {
+      if (theses.some((t) => t.status === 'final')) {
+        status = 'completed';
+        description = `${label}已通过`;
+      } else if (latestStage === stageKey) {
+        status = 'in-progress';
+        description = `${label}审阅中`;
+      }
     }
 
     return { name: label, status, completedDate, description, score };
