@@ -96,6 +96,36 @@ class ThesisReview(models.Model):
         ordering = ['-reviewed_at']
 
 
+class Proposal(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='proposals')
+    title = models.CharField(max_length=255, default='开题报告')
+    file = models.FileField(upload_to='proposal/%Y/%m/')
+    status = models.CharField(max_length=20, default='submitted')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.student.username} - Proposal'
+
+    class Meta:
+        ordering = ['-submitted_at']
+
+
+class MidtermCheck(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='midterms')
+    title = models.CharField(max_length=255, default='中期检查')
+    file = models.FileField(upload_to='midterm/%Y/%m/', blank=True, null=True)
+    status = models.CharField(max_length=20, default='submitted')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.student.username} - MidtermCheck'
+
+    class Meta:
+        ordering = ['-submitted_at']
+
+
 class Topic(models.Model):
     TYPE_CHOICES = (
         ('应用研究', '应用研究'),

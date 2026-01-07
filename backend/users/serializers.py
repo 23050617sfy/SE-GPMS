@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import Profile, Thesis, ThesisReview
 from .models import Topic, TopicSelection
+from .models import Proposal, MidtermCheck
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -98,6 +99,38 @@ class ThesisSerializer(serializers.ModelSerializer):
         if full_name:
             return full_name
         return obj.student.username
+
+
+class ProposalSerializer(serializers.ModelSerializer):
+    student_id = serializers.CharField(source='student.username', read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Proposal
+        fields = ('id', 'student_id', 'title', 'file', 'file_url', 'status', 'submitted_at', 'updated_at')
+        read_only_fields = ('id', 'submitted_at', 'updated_at')
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None
+
+
+class MidtermCheckSerializer(serializers.ModelSerializer):
+    student_id = serializers.CharField(source='student.username', read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MidtermCheck
+        fields = ('id', 'student_id', 'title', 'file', 'file_url', 'status', 'submitted_at', 'updated_at')
+        read_only_fields = ('id', 'submitted_at', 'updated_at')
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None
 
 
 class TopicSerializer(serializers.ModelSerializer):
