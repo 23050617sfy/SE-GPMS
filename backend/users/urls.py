@@ -8,6 +8,7 @@ from .views import (
     AllProposalsListAPIView, ProposalReviewAPIView,
     MidtermSubmitAPIView, MyMidtermsListAPIView,
     AllMidtermsListAPIView, MidtermReviewAPIView,
+    StudentProgressAPIView,
 )
 from .views import TopicListCreateAPIView, TopicDetailAPIView, MyTopicsListAPIView, TopicStudentsAPIView
 from .views import TopicSelectAPIView
@@ -37,4 +38,6 @@ urlpatterns = [
     path('topics/<int:pk>/', TopicDetailAPIView.as_view(), name='topic_detail'),
     path('topics/<int:pk>/select/', TopicSelectAPIView.as_view(), name='topic_select'),
     path('topics/<int:pk>/students/', TopicStudentsAPIView.as_view(), name='topic_students'),
+    # Student progress endpoint
+    path('progress/', StudentProgressAPIView.as_view(), name='student_progress'),
 ]

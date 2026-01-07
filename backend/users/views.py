@@ -566,3 +566,251 @@ class TopicStudentsAPIView(APIView):
                 'selected_at': sel.selected_at,
             })
         return Response({'students': students, 'count': len(students)}, status=status.HTTP_200_OK)
+
+
+class StudentProgressAPIView(APIView):
+    """获取学生进度信息的API视图"""
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, *args, **kwargs):
+        # 只有学生可以查看自己的进度
+        if request.user.profile.role != 'student':
+            return Response({'detail': '只有学生可以查看进度'}, status=status.HTTP_403_FORBIDDEN)
+
+        from .models import ProposalReview, MidtermReview
+        
+        progress = {}
+        
+        # 1. 检查选题
+        topic_selection = TopicSelection.objects.filter(student=request.user).first()
+        if topic_selection:
+            progress['topic_selection'] = {
+                'status': 'completed',
+                'topic_title': topic_selection.topic.title,
+                'teacher_name': topic_selection.topic.teacher.get_full_name() or topic_selection.topic.teacher.username,
+                'selected_at': topic_selection.selected_at.isoformat() if topic_selection.selected_at else None,
+            }
+        else:
+            progress['topic_selection'] = {
+                'status': 'pending',
+                'message': '尚未选题',
+            }
+
+        # 2. 检查开题报告
+        proposals = Proposal.objects.filter(student=request.user).order_by('-submitted_at')
+        if proposals.exists():
+            latest_proposal = proposals.first()
+            proposal_reviews = ProposalReview.objects.filter(proposal=latest_proposal).order_by('-reviewed_at')
+            
+            if proposal_reviews.exists():
+                latest_review = proposal_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['proposal'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['proposal'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['proposal'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['proposal'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_proposal.submitted_at.isoformat() if latest_proposal.submitted_at else None,
+                }
+        else:
+            progress['proposal'] = {
+                'status': 'pending',
+                'message': '尚未提交开题报告',
+            }
+
+        # 3. 检查中期检查
+        midterms = MidtermCheck.objects.filter(student=request.user).order_by('-submitted_at')
+        if midterms.exists():
+            latest_midterm = midterms.first()
+            midterm_reviews = MidtermReview.objects.filter(midterm=latest_midterm).order_by('-reviewed_at')
+            
+            if midterm_reviews.exists():
+                latest_review = midterm_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['midterm'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['midterm'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['midterm'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['midterm'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_midterm.submitted_at.isoformat() if latest_midterm.submitted_at else None,
+                }
+        else:
+            progress['midterm'] = {
+                'status': 'pending',
+                'message': '尚未提交中期检查',
+            }
+
+        # 4. 检查论文初稿（一审）
+        theses = Thesis.objects.filter(student=request.user).order_by('-submitted_at')
+        first_review_theses = theses.filter(stage='first_review')
+        if first_review_theses.exists():
+            latest_thesis = first_review_theses.first()
+            thesis_reviews = ThesisReview.objects.filter(thesis=latest_thesis, stage='first_review').order_by('-reviewed_at')
+            
+            if thesis_reviews.exists():
+                latest_review = thesis_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['first_review'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['first_review'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['first_review'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['first_review'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_thesis.submitted_at.isoformat() if latest_thesis.submitted_at else None,
+                }
+        else:
+            progress['first_review'] = {
+                'status': 'pending',
+                'message': '尚未提交论文初稿',
+            }
+
+        # 5. 检查论文修改（二审）
+        second_review_theses = theses.filter(stage='second_review')
+        if second_review_theses.exists():
+            latest_thesis = second_review_theses.first()
+            thesis_reviews = ThesisReview.objects.filter(thesis=latest_thesis, stage='second_review').order_by('-reviewed_at')
+            
+            if thesis_reviews.exists():
+                latest_review = thesis_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['second_review'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['second_review'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['second_review'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['second_review'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_thesis.submitted_at.isoformat() if latest_thesis.submitted_at else None,
+                }
+        else:
+            progress['second_review'] = {
+                'status': 'pending',
+                'message': '尚未提交论文修改稿',
+            }
+
+        # 6. 检查论文终稿
+        final_theses = theses.filter(stage='final_submission')
+        if final_theses.exists():
+            latest_thesis = final_theses.first()
+            thesis_reviews = ThesisReview.objects.filter(thesis=latest_thesis, stage='final_submission').order_by('-reviewed_at')
+            
+            if thesis_reviews.exists():
+                latest_review = thesis_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['final_submission'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['final_submission'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['final_submission'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['final_submission'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_thesis.submitted_at.isoformat() if latest_thesis.submitted_at else None,
+                }
+        else:
+            progress['final_submission'] = {
+                'status': 'pending',
+                'message': '尚未提交论文终稿',
+            }
+
+        return Response(progress, status=status.HTTP_200_OK)
