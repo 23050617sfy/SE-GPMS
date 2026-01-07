@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import Profile, Thesis, ThesisReview
+from .models import Topic, TopicSelection
+from .models import Proposal, MidtermCheck, ProposalReview, MidtermReview
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -97,3 +99,162 @@ class ThesisSerializer(serializers.ModelSerializer):
         if full_name:
             return full_name
         return obj.student.username
+
+
+class ProposalSerializer(serializers.ModelSerializer):
+    student_id = serializers.CharField(source='student.username', read_only=True)
+    student_name = serializers.SerializerMethodField()
+    file_url = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Proposal
+        fields = ('id', 'student_id', 'student_name', 'title', 'file', 'file_url', 'status', 'submitted_at', 'updated_at', 'reviews')
+        read_only_fields = ('id', 'submitted_at', 'updated_at')
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None
+
+    def get_reviews(self, obj):
+        qs = getattr(obj, 'reviews', None)
+        if qs is None:
+            return []
+        return ProposalReviewSerializer(qs, many=True).data
+    def get_student_name(self, obj):
+        first = getattr(obj.student, 'first_name', '') or ''
+        last = getattr(obj.student, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            return full
+        full_name = obj.student.get_full_name().strip()
+        return full_name if full_name else obj.student.username
+
+
+class MidtermCheckSerializer(serializers.ModelSerializer):
+    student_id = serializers.CharField(source='student.username', read_only=True)
+    student_name = serializers.SerializerMethodField()
+    file_url = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MidtermCheck
+        fields = ('id', 'student_id', 'student_name', 'title', 'file', 'file_url', 'status', 'submitted_at', 'updated_at', 'reviews')
+        read_only_fields = ('id', 'submitted_at', 'updated_at')
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None
+
+    def get_reviews(self, obj):
+        qs = getattr(obj, 'reviews', None)
+        if qs is None:
+            return []
+        return MidtermReviewSerializer(qs, many=True).data
+    def get_student_name(self, obj):
+        first = getattr(obj.student, 'first_name', '') or ''
+        last = getattr(obj.student, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            return full
+        full_name = obj.student.get_full_name().strip()
+        return full_name if full_name else obj.student.username
+
+
+class ProposalReviewSerializer(serializers.ModelSerializer):
+    reviewer_name = serializers.SerializerMethodField()
+    proposal = serializers.PrimaryKeyRelatedField(queryset=Proposal.objects.all(), write_only=True)
+
+    class Meta:
+        model = ProposalReview
+        fields = ('id', 'proposal', 'feedback', 'score', 'result', 'reviewed_at', 'reviewer_name')
+        read_only_fields = ('id', 'reviewed_at')
+    
+    def get_reviewer_name(self, obj):
+        if not obj.reviewer:
+            return '系统'
+        first = getattr(obj.reviewer, 'first_name', '') or ''
+        last = getattr(obj.reviewer, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            return full
+        return obj.reviewer.username
+
+    def validate_score(self, value):
+        if value is None:
+            return value
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('score must be between 0 and 100')
+        return value
+
+
+class MidtermReviewSerializer(serializers.ModelSerializer):
+    reviewer_name = serializers.SerializerMethodField()
+    midterm = serializers.PrimaryKeyRelatedField(queryset=MidtermCheck.objects.all(), write_only=True)
+
+    class Meta:
+        model = MidtermReview
+        fields = ('id', 'midterm', 'feedback', 'score', 'result', 'reviewed_at', 'reviewer_name')
+        read_only_fields = ('id', 'reviewed_at')
+    
+    def get_reviewer_name(self, obj):
+        if not obj.reviewer:
+            return '系统'
+        first = getattr(obj.reviewer, 'first_name', '') or ''
+        last = getattr(obj.reviewer, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            return full
+        return obj.reviewer.username
+
+    def validate_score(self, value):
+        if value is None:
+            return value
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('score must be between 0 and 100')
+        return value
+
+
+class TopicSerializer(serializers.ModelSerializer):
+    teacher_id = serializers.CharField(source='teacher.username', read_only=True)
+    teacher_name = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    is_selected = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Topic
+        fields = ('id', 'teacher_id', 'teacher_name', 'title', 'type', 'difficulty', 'max_students', 'selected_students', 'status', 'description', 'requirements', 'is_selected', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'teacher_id', 'teacher_name', 'selected_students', 'status', 'is_selected', 'created_at', 'updated_at')
+
+    def get_teacher_name(self, obj):
+        # For Chinese names prefer last_name + first_name without space
+        first = getattr(obj.teacher, 'first_name', '') or ''
+        last = getattr(obj.teacher, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            return full
+        # fallback to get_full_name or username
+        full_name = obj.teacher.get_full_name().strip()
+        if full_name:
+            return full_name
+        return obj.teacher.username
+
+    def get_status(self, obj):
+        try:
+            if obj.selected_students >= (obj.max_students or 1):
+                return 'full'
+        except Exception:
+            pass
+        return 'open'
+
+    def get_is_selected(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        user = request.user
+        # student selected this topic?
+        return TopicSelection.objects.filter(topic=obj, student=user).exists()

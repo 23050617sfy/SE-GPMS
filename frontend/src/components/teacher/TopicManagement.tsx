@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
-import { Plus, Edit, Trash2, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, Eye } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,55 +14,138 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
+import { apiFetch } from '../../utils/api';
 
-const mockTopics = [
-  {
-    id: '1',
-    title: '基于深度学习的图像识别系统研究',
-    type: '应用研究',
-    difficulty: '中等',
-    maxStudents: 1,
-    selectedStudents: 1,
-    status: '已满',
-    description: '研究深度学习在图像识别领域的应用...',
-    requirements: '熟悉Python编程，了解机器学习基础知识',
-  },
-  {
-    id: '2',
-    title: '智能客服系统的设计与实现',
-    type: '系统设计',
-    difficulty: '中等',
-    maxStudents: 1,
-    selectedStudents: 1,
-    status: '已满',
-    description: '设计并实现基于NLP的智能客服系统...',
-    requirements: '熟悉Web开发，了解自然语言处理基础',
-  },
-  {
-    id: '3',
-    title: '区块链技术在数字版权保护中的应用',
-    type: '应用研究',
-    difficulty: '较难',
-    maxStudents: 1,
-    selectedStudents: 0,
-    status: '可选',
-    description: '探索区块链技术在数字版权保护领域的应用...',
-    requirements: '了解区块链原理，有一定的开发经验',
-  },
-];
+type Topic = {
+  id: number;
+  title: string;
+  type?: string;
+  difficulty?: string;
+  max_students?: number;
+  selected_students?: number;
+  status?: string;
+  description?: string;
+  requirements?: string;
+};
 
 export function TopicManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingTopic, setEditingTopic] = useState<typeof mockTopics[0] | null>(null);
+  const [studentsDialogOpen, setStudentsDialogOpen] = useState(false);
+  const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
+  const [selectedTopicForStudents, setSelectedTopicForStudents] = useState<Topic | null>(null);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [students, setStudents] = useState<any[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
-  const handleAddTopic = () => {
+  const [title, setTitle] = useState('');
+  const [typeVal, setTypeVal] = useState('应用研究');
+  const [difficulty, setDifficulty] = useState('中等');
+  const [description, setDescription] = useState('');
+  const [requirements, setRequirements] = useState('');
+  const [maxStudents, setMaxStudents] = useState(1);
+  const [saving, setSaving] = useState(false);
+
+  const loadTopics = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiFetch('/api/auth/topics/my-topics/');
+      setTopics(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      // fallback: keep empty and surface error
+      setError(err?.data?.detail || (err?.data || err?.toString()) || '加载课题失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTopics();
+  }, []);
+
+  const openNew = () => {
     setEditingTopic(null);
+    setTitle('');
+    setTypeVal('应用研究');
+    setDifficulty('中等');
+    setDescription('');
+    setRequirements('');
+    setMaxStudents(1);
     setDialogOpen(true);
   };
 
-  const handleEditTopic = (topic: typeof mockTopics[0]) => {
-    setEditingTopic(topic);
+  const openEdit = (t: Topic) => {
+    setEditingTopic(t);
+    setTitle(t.title || '');
+    setTypeVal(t.type || '应用研究');
+    setDifficulty(t.difficulty || '中等');
+    setDescription(t.description || '');
+    setRequirements(t.requirements || '');
+    setMaxStudents(t.max_students || 1);
     setDialogOpen(true);
+  };
+
+  const saveTopic = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const payload = {
+        title: title.trim(),
+        type: typeVal,
+        difficulty,
+        description,
+        requirements,
+        max_students: Number(maxStudents) || 1,
+      };
+      if (editingTopic) {
+        // update
+        await apiFetch(`/api/auth/topics/${editingTopic.id}/`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // create
+        await apiFetch('/api/auth/topics/', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      }
+      // reload list from server to reflect accurate computed fields
+      await loadTopics();
+      setDialogOpen(false);
+    } catch (err: any) {
+      setError(err?.data?.detail || (err?.data || err?.toString()) || '保存课题失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteTopic = async (t: Topic) => {
+    if (!confirm('确认删除该课题吗？删除后无法恢复。')) return;
+    try {
+      await apiFetch(`/api/auth/topics/${t.id}/`, { method: 'DELETE' });
+      // reload server list
+      await loadTopics();
+    } catch (err: any) {
+      setError(err?.data?.detail || (err?.data || err?.toString()) || '删除失败');
+    }
+  };
+
+  const openStudentsDialog = async (t: Topic) => {
+    setSelectedTopicForStudents(t);
+    setLoadingStudents(true);
+    setStudents([]);
+    try {
+      const data = await apiFetch(`/api/auth/topics/${t.id}/students/`);
+      setStudents(data.students || []);
+      setStudentsDialogOpen(true);
+    } catch (err: any) {
+      setError(err?.data?.detail || (err?.data || err?.toString()) || '加载学生信息失败');
+    } finally {
+      setLoadingStudents(false);
+    }
   };
 
   return (
@@ -74,76 +157,131 @@ export function TopicManagement() {
               <CardTitle>我的课题</CardTitle>
               <CardDescription>管理您发布的毕业论文课题</CardDescription>
             </div>
-            <Button onClick={handleAddTopic}>
+            <Button onClick={openNew}>
               <Plus className="size-4 mr-2" />
               发布新课题
             </Button>
           </div>
         </CardHeader>
         <CardContent>
+          {loading && <p className="text-sm text-gray-600">加载中...</p>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
           <div className="space-y-4">
-            {mockTopics.map((topic) => (
-              <Card key={topic.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CardTitle className="text-lg">{topic.title}</CardTitle>
-                        <Badge variant={topic.status === '已满' ? 'default' : 'secondary'}>
-                          {topic.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <Badge variant="outline">{topic.type}</Badge>
-                        <Badge variant="outline">难度: {topic.difficulty}</Badge>
-                        <div className="flex items-center gap-1">
-                          <Users className="size-4" />
-                          <span>{topic.selectedStudents}/{topic.maxStudents}</span>
+            {topics.length === 0 && !loading ? (
+              <div className="text-center py-12">
+                <h3 className="text-lg mb-2">暂无课题</h3>
+                <p className="text-gray-600">点击“发布新课题”添加</p>
+              </div>
+            ) : (
+              topics.map((topic) => (
+                <Card key={topic.id}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CardTitle className="text-lg">{topic.title}</CardTitle>
+                          <Badge variant={topic.status === 'full' ? 'default' : 'secondary'}>
+                            {topic.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <Badge variant="outline">{topic.type}</Badge>
+                          <Badge variant="outline">难度: {topic.difficulty}</Badge>
+                          <div className="flex items-center gap-1">
+                            <Users className="size-4" />
+                            <span>{topic.selected_students || 0}/{topic.max_students || 1}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEditTopic(topic)}
-                      >
-                        <Edit className="size-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={topic.selectedStudents > 0}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <h4 className="text-sm mb-1">课题简介：</h4>
-                    <p className="text-sm text-gray-600">{topic.description}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm mb-1">学生要求：</h4>
-                    <p className="text-sm text-gray-600">{topic.requirements}</p>
-                  </div>
-                  {topic.selectedStudents > 0 && (
-                    <div className="pt-3 border-t">
-                      <h4 className="text-sm mb-2">已选学生：</h4>
-                      <div className="p-3 bg-blue-50 rounded">
-                        <p className="text-sm">张三 - 计算机学院 - 20210101</p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEdit(topic)}
+                        >
+                          <Edit className="size-4" />
+                        </Button>
+                        {(topic.selected_students || 0) > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openStudentsDialog(topic)}
+                          >
+                            <Eye className="size-4 mr-1" />
+                            查看学生
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(topic.selected_students || 0) > 0}
+                          onClick={() => deleteTopic(topic)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
                       </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <h4 className="text-sm mb-1">课题简介：</h4>
+                      <p className="text-sm text-gray-600">{topic.description}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm mb-1">学生要求：</h4>
+                      <p className="text-sm text-gray-600">{topic.requirements}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
 
+      {/* 学生列表对话框 */}
+      <Dialog open={studentsDialogOpen} onOpenChange={setStudentsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>已选学生 - {selectedTopicForStudents?.title}</DialogTitle>
+            <DialogDescription>
+              共 {students.length} 名学生选择了此课题
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {loadingStudents && <p className="text-sm text-gray-600">加载中...</p>}
+            {students.length === 0 && !loadingStudents && (
+              <p className="text-sm text-gray-600">暂无学生选择</p>
+            )}
+            {students.length > 0 && (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {students.map((student, idx) => (
+                  <div key={idx} className="p-3 border rounded-lg bg-gray-50">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">{student.name}</p>
+                        <p className="text-sm text-gray-600">学号: {student.student_id}</p>
+                        <p className="text-sm text-gray-600">邮箱: {student.email}</p>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {new Date(student.selected_at).toLocaleDateString('zh-CN')}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStudentsDialogOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑/新建课题对话框 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -157,7 +295,8 @@ export function TopicManagement() {
               <Label htmlFor="topic-title">课题名称</Label>
               <Input
                 id="topic-title"
-                defaultValue={editingTopic?.title}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="请输入课题名称"
                 className="mt-2"
               />
@@ -167,7 +306,8 @@ export function TopicManagement() {
                 <Label htmlFor="topic-type">课题类型</Label>
                 <select
                   id="topic-type"
-                  defaultValue={editingTopic?.type}
+                  value={typeVal}
+                  onChange={(e) => setTypeVal(e.target.value)}
                   className="w-full mt-2 px-3 py-2 border rounded-md"
                 >
                   <option>应用研究</option>
@@ -180,7 +320,8 @@ export function TopicManagement() {
                 <Label htmlFor="topic-difficulty">难度等级</Label>
                 <select
                   id="topic-difficulty"
-                  defaultValue={editingTopic?.difficulty}
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
                   className="w-full mt-2 px-3 py-2 border rounded-md"
                 >
                   <option>较易</option>
@@ -193,7 +334,8 @@ export function TopicManagement() {
               <Label htmlFor="topic-description">课题简介</Label>
               <Textarea
                 id="topic-description"
-                defaultValue={editingTopic?.description}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 placeholder="请详细描述课题的研究内容、目标等"
                 className="mt-2 min-h-24"
               />
@@ -202,7 +344,8 @@ export function TopicManagement() {
               <Label htmlFor="topic-requirements">学生要求</Label>
               <Textarea
                 id="topic-requirements"
-                defaultValue={editingTopic?.requirements}
+                value={requirements}
+                onChange={(e) => setRequirements(e.target.value)}
                 placeholder="请说明对学生的技能要求、前置知识等"
                 className="mt-2 min-h-20"
               />
@@ -212,9 +355,10 @@ export function TopicManagement() {
               <Input
                 id="max-students"
                 type="number"
-                defaultValue={editingTopic?.maxStudents || 1}
+                value={maxStudents}
+                onChange={(e) => setMaxStudents(Number(e.target.value))}
                 min={1}
-                max={3}
+                max={10}
                 className="mt-2"
               />
             </div>
@@ -223,8 +367,8 @@ export function TopicManagement() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               取消
             </Button>
-            <Button onClick={() => setDialogOpen(false)}>
-              {editingTopic ? '保存修改' : '发布课题'}
+            <Button onClick={saveTopic} disabled={!title || saving}>
+              {saving ? '保存中...' : (editingTopic ? '保存修改' : '发布课题')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,8 +6,13 @@ from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ThesisSerializer, ThesisReviewSerializer
-from .models import Thesis, ThesisReview
+from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ThesisSerializer, ThesisReviewSerializer, TopicSerializer
+from .serializers import ProposalSerializer, MidtermCheckSerializer
+from .serializers import ProposalReviewSerializer, MidtermReviewSerializer
+from .models import Thesis, ThesisReview, Topic, TopicSelection
+from .models import Proposal, MidtermCheck
+from .serializers import TopicSerializer
+from .models import Topic
 from django.db.models import Q
 from django.db.models.functions import Concat
 from rest_framework.permissions import IsAuthenticated
@@ -144,22 +149,31 @@ class AllThesesListAPIView(generics.ListAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
-        # Only teachers and admins can see all theses
-        if self.request.user.profile.role in ['teacher', 'admin']:
+        # 管理员看所有论文，教师只看选了自己课程的学生的论文
+        if self.request.user.profile.role == 'admin':
             qs = Thesis.objects.all()
-            query = self.request.query_params.get('username')
-            if query:
-                q = query.strip()
-                # annotate concatenated last_name+first_name for full-name search
-                qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
-                qs = qs.filter(
-                    Q(student__username__icontains=q) |
-                    Q(student__first_name__icontains=q) |
-                    Q(student__last_name__icontains=q) |
-                    Q(student_full_name__icontains=q)
-                )
-            return qs
-        return Thesis.objects.none()
+        elif self.request.user.profile.role == 'teacher':
+            # 教师只能查看选了自己课程的学生的论文
+            students_with_my_topics = User.objects.filter(
+                selected_topics__topic__teacher=self.request.user
+            ).distinct()
+            qs = Thesis.objects.filter(student__in=students_with_my_topics)
+        else:
+            return Thesis.objects.none()
+        
+        # 支持按学生名称搜索
+        query = self.request.query_params.get('username')
+        if query:
+            q = query.strip()
+            # annotate concatenated last_name+first_name for full-name search
+            qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
+            qs = qs.filter(
+                Q(student__username__icontains=q) |
+                Q(student__first_name__icontains=q) |
+                Q(student__last_name__icontains=q) |
+                Q(student_full_name__icontains=q)
+            )
+        return qs
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -192,3 +206,611 @@ class ThesisReviewAPIView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(reviewer=self.request.user)
+
+
+class ProposalSubmitAPIView(generics.CreateAPIView):
+    serializer_class = ProposalSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+    parser_classes = (MultiPartParser, FormParser)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def create(self, request, *args, **kwargs):
+        if request.user.profile.role != 'student':
+            return Response({'detail': 'Only students can submit proposal'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        serializer.save(student=self.request.user)
+
+
+class MyProposalsListAPIView(generics.ListAPIView):
+    serializer_class = ProposalSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        if self.request.user.profile.role == 'student':
+            return Proposal.objects.filter(student=self.request.user)
+        return Proposal.objects.none()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class MidtermSubmitAPIView(generics.CreateAPIView):
+    serializer_class = MidtermCheckSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+    parser_classes = (MultiPartParser, FormParser)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def create(self, request, *args, **kwargs):
+        if request.user.profile.role != 'student':
+            return Response({'detail': 'Only students can submit midterm check'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        serializer.save(student=self.request.user)
+
+
+class MyMidtermsListAPIView(generics.ListAPIView):
+    serializer_class = MidtermCheckSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        if self.request.user.profile.role == 'student':
+            return MidtermCheck.objects.filter(student=self.request.user)
+        return MidtermCheck.objects.none()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class AllProposalsListAPIView(generics.ListAPIView):
+    serializer_class = ProposalSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        if self.request.user.profile.role == 'admin':
+            qs = Proposal.objects.all()
+        elif self.request.user.profile.role == 'teacher':
+            # 教师只能查看选了自己课程的学生的提交
+            students_with_my_topics = User.objects.filter(
+                selected_topics__topic__teacher=self.request.user
+            ).distinct()
+            qs = Proposal.objects.filter(student__in=students_with_my_topics)
+        else:
+            return Proposal.objects.none()
+        
+        # 支持按学生名称搜索
+        query = self.request.query_params.get('username')
+        if query:
+            q = query.strip()
+            qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
+            qs = qs.filter(
+                Q(student__username__icontains=q) |
+                Q(student__first_name__icontains=q) |
+                Q(student__last_name__icontains=q) |
+                Q(student_full_name__icontains=q)
+            )
+        return qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class AllMidtermsListAPIView(generics.ListAPIView):
+    serializer_class = MidtermCheckSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        if self.request.user.profile.role == 'admin':
+            qs = MidtermCheck.objects.all()
+        elif self.request.user.profile.role == 'teacher':
+            # 教师只能查看选了自己课程的学生的提交
+            students_with_my_topics = User.objects.filter(
+                selected_topics__topic__teacher=self.request.user
+            ).distinct()
+            qs = MidtermCheck.objects.filter(student__in=students_with_my_topics)
+        else:
+            return MidtermCheck.objects.none()
+        
+        # 支持按学生名称搜索
+        query = self.request.query_params.get('username')
+        if query:
+            q = query.strip()
+            qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
+            qs = qs.filter(
+                Q(student__username__icontains=q) |
+                Q(student__first_name__icontains=q) |
+                Q(student__last_name__icontains=q) |
+                Q(student_full_name__icontains=q)
+            )
+        return qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class ProposalReviewAPIView(generics.CreateAPIView):
+    serializer_class = ProposalReviewSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def create(self, request, proposal_id, *args, **kwargs):
+        if request.user.profile.role not in ['teacher', 'admin']:
+            return Response({'detail': 'Only teachers can review proposals'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            Proposal.objects.get(id=proposal_id)
+        except Proposal.DoesNotExist:
+            return Response({'detail': 'Proposal not found'}, status=status.HTTP_404_NOT_FOUND)
+        data = request.data.copy()
+        data['proposal'] = proposal_id
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        serializer.save(reviewer=self.request.user)
+
+
+class MidtermReviewAPIView(generics.CreateAPIView):
+    serializer_class = MidtermReviewSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def create(self, request, midterm_id, *args, **kwargs):
+        if request.user.profile.role not in ['teacher', 'admin']:
+            return Response({'detail': 'Only teachers can review midterms'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            MidtermCheck.objects.get(id=midterm_id)
+        except MidtermCheck.DoesNotExist:
+            return Response({'detail': 'Midterm not found'}, status=status.HTTP_404_NOT_FOUND)
+        data = request.data.copy()
+        data['midterm'] = midterm_id
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        serializer.save(reviewer=self.request.user)
+
+
+class TopicListCreateAPIView(generics.ListCreateAPIView):
+    serializer_class = TopicSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        # GET: students see all topics; teachers see their own topics
+        user = self.request.user
+        if user.profile.role == 'teacher':
+            return Topic.objects.filter(teacher=user)
+        # student or admin: show all topics
+        return Topic.objects.all()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def create(self, request, *args, **kwargs):
+        # Only teachers may create topics
+        if request.user.profile.role != 'teacher':
+            return Response({'detail': 'Only teachers can create topics'}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(teacher=self.request.user)
+
+
+class TopicDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = TopicSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_object(self):
+        pk = self.kwargs.get('pk')
+        try:
+            return Topic.objects.get(id=pk)
+        except Topic.DoesNotExist:
+            return None
+
+    def retrieve(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(self.get_serializer(obj).data)
+
+    def update(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Only the owner teacher or admin can update
+        if request.user != obj.teacher and request.user.profile.role != 'admin':
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Prevent deletion if students have been selected
+        if obj.selected_students and obj.selected_students > 0:
+            return Response({'detail': 'Cannot delete topic with selected students'}, status=status.HTTP_400_BAD_REQUEST)
+        if request.user != obj.teacher and request.user.profile.role != 'admin':
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TopicSelectAPIView(APIView):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, pk, *args, **kwargs):
+        # only students may select
+        if request.user.profile.role != 'student':
+            return Response({'detail': 'Only students can select topics'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            topic = Topic.objects.get(id=pk)
+        except Topic.DoesNotExist:
+            return Response({'detail': 'Topic not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # check if student already selected any topic
+        if TopicSelection.objects.filter(student=request.user).exists():
+            return Response({'detail': '学生已选择过课题，不能重复选择'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # check capacity
+        if topic.selected_students >= (topic.max_students or 1):
+            return Response({'detail': '课题已满'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # create selection
+        sel = TopicSelection.objects.create(topic=topic, student=request.user)
+        # increment counter
+        topic.selected_students = (topic.selected_students or 0) + 1
+        topic.save()
+        return Response({'detail': '选择成功'}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, pk, *args, **kwargs):
+        # only students may deselect
+        if request.user.profile.role != 'student':
+            return Response({'detail': 'Only students can deselect topics'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            topic = Topic.objects.get(id=pk)
+        except Topic.DoesNotExist:
+            return Response({'detail': 'Topic not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # find and delete the selection
+        try:
+            selection = TopicSelection.objects.get(topic=topic, student=request.user)
+            selection.delete()
+            # decrement counter
+            topic.selected_students = max(0, (topic.selected_students or 1) - 1)
+            topic.save()
+            return Response({'detail': '取消选择成功'}, status=status.HTTP_200_OK)
+        except TopicSelection.DoesNotExist:
+            return Response({'detail': '未选择此课题'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MyTopicsListAPIView(generics.ListAPIView):
+    serializer_class = TopicSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        # Only teachers can have topics
+        if self.request.user.profile.role == 'teacher':
+            return Topic.objects.filter(teacher=self.request.user)
+        return Topic.objects.none()
+
+
+class TopicStudentsAPIView(APIView):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, pk, *args, **kwargs):
+        try:
+            topic = Topic.objects.get(id=pk)
+        except Topic.DoesNotExist:
+            return Response({'detail': 'Topic not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only topic owner or admin can view students
+        if request.user != topic.teacher and request.user.profile.role != 'admin':
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get all students who selected this topic
+        selections = TopicSelection.objects.filter(topic=topic).select_related('student')
+        students = []
+        for sel in selections:
+            first = getattr(sel.student, 'first_name', '') or ''
+            last = getattr(sel.student, 'last_name', '') or ''
+            full_name = (last + first).strip()
+            if not full_name:
+                full_name = sel.student.get_full_name().strip() or sel.student.username
+            students.append({
+                'id': sel.student.id,
+                'student_id': sel.student.username,
+                'name': full_name,
+                'email': sel.student.email,
+                'selected_at': sel.selected_at,
+            })
+        return Response({'students': students, 'count': len(students)}, status=status.HTTP_200_OK)
+
+
+class StudentProgressAPIView(APIView):
+    """获取学生进度信息的API视图"""
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, *args, **kwargs):
+        # 只有学生可以查看自己的进度
+        if request.user.profile.role != 'student':
+            return Response({'detail': '只有学生可以查看进度'}, status=status.HTTP_403_FORBIDDEN)
+
+        from .models import ProposalReview, MidtermReview
+        
+        progress = {}
+        
+        # 1. 检查选题
+        topic_selection = TopicSelection.objects.filter(student=request.user).first()
+        if topic_selection:
+            progress['topic_selection'] = {
+                'status': 'completed',
+                'topic_title': topic_selection.topic.title,
+                'teacher_name': topic_selection.topic.teacher.get_full_name() or topic_selection.topic.teacher.username,
+                'selected_at': topic_selection.selected_at.isoformat() if topic_selection.selected_at else None,
+            }
+        else:
+            progress['topic_selection'] = {
+                'status': 'pending',
+                'message': '尚未选题',
+            }
+
+        # 2. 检查开题报告
+        proposals = Proposal.objects.filter(student=request.user).order_by('-submitted_at')
+        if proposals.exists():
+            latest_proposal = proposals.first()
+            proposal_reviews = ProposalReview.objects.filter(proposal=latest_proposal).order_by('-reviewed_at')
+            
+            if proposal_reviews.exists():
+                latest_review = proposal_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['proposal'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['proposal'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['proposal'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['proposal'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_proposal.submitted_at.isoformat() if latest_proposal.submitted_at else None,
+                }
+        else:
+            progress['proposal'] = {
+                'status': 'pending',
+                'message': '尚未提交开题报告',
+            }
+
+        # 3. 检查中期检查
+        midterms = MidtermCheck.objects.filter(student=request.user).order_by('-submitted_at')
+        if midterms.exists():
+            latest_midterm = midterms.first()
+            midterm_reviews = MidtermReview.objects.filter(midterm=latest_midterm).order_by('-reviewed_at')
+            
+            if midterm_reviews.exists():
+                latest_review = midterm_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['midterm'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['midterm'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['midterm'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['midterm'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_midterm.submitted_at.isoformat() if latest_midterm.submitted_at else None,
+                }
+        else:
+            progress['midterm'] = {
+                'status': 'pending',
+                'message': '尚未提交中期检查',
+            }
+
+        # 4. 检查论文初稿（一审）
+        theses = Thesis.objects.filter(student=request.user).order_by('-submitted_at')
+        first_review_theses = theses.filter(stage='first_review')
+        if first_review_theses.exists():
+            latest_thesis = first_review_theses.first()
+            thesis_reviews = ThesisReview.objects.filter(thesis=latest_thesis, stage='first_review').order_by('-reviewed_at')
+            
+            if thesis_reviews.exists():
+                latest_review = thesis_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['first_review'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['first_review'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['first_review'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['first_review'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_thesis.submitted_at.isoformat() if latest_thesis.submitted_at else None,
+                }
+        else:
+            progress['first_review'] = {
+                'status': 'pending',
+                'message': '尚未提交论文初稿',
+            }
+
+        # 5. 检查论文修改（二审）
+        second_review_theses = theses.filter(stage='second_review')
+        if second_review_theses.exists():
+            latest_thesis = second_review_theses.first()
+            thesis_reviews = ThesisReview.objects.filter(thesis=latest_thesis, stage='second_review').order_by('-reviewed_at')
+            
+            if thesis_reviews.exists():
+                latest_review = thesis_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['second_review'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['second_review'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['second_review'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['second_review'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_thesis.submitted_at.isoformat() if latest_thesis.submitted_at else None,
+                }
+        else:
+            progress['second_review'] = {
+                'status': 'pending',
+                'message': '尚未提交论文修改稿',
+            }
+
+        # 6. 检查论文终稿
+        final_theses = theses.filter(stage='final_submission')
+        if final_theses.exists():
+            latest_thesis = final_theses.first()
+            thesis_reviews = ThesisReview.objects.filter(thesis=latest_thesis, stage='final_submission').order_by('-reviewed_at')
+            
+            if thesis_reviews.exists():
+                latest_review = thesis_reviews.first()
+                if latest_review.result == 'pass':
+                    progress['final_submission'] = {
+                        'status': 'completed',
+                        'score': latest_review.score,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                        'comments': latest_review.feedback,
+                    }
+                elif latest_review.result == 'revise':
+                    progress['final_submission'] = {
+                        'status': 'in-progress',
+                        'message': '需要修改',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+                else:  # fail
+                    progress['final_submission'] = {
+                        'status': 'failed',
+                        'message': '未通过',
+                        'score': latest_review.score,
+                        'comments': latest_review.feedback,
+                        'reviewed_at': latest_review.reviewed_at.isoformat() if latest_review.reviewed_at else None,
+                    }
+            else:
+                progress['final_submission'] = {
+                    'status': 'in-progress',
+                    'message': '已提交，等待审核',
+                    'submitted_at': latest_thesis.submitted_at.isoformat() if latest_thesis.submitted_at else None,
+                }
+        else:
+            progress['final_submission'] = {
+                'status': 'pending',
+                'message': '尚未提交论文终稿',
+            }
+
+        return Response(progress, status=status.HTTP_200_OK)

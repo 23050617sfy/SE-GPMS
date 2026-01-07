@@ -1,171 +1,213 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
-import { Upload, FileText, CheckCircle2, AlertCircle, Download } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Upload, FileText, Download, AlertCircle, MessageSquare } from 'lucide-react';
+import { apiFetch, apiUpload } from '../../utils/api';
+
+type Proposal = {
+  id: number;
+  title: string;
+  file: string;
+  file_url?: string | null;
+  status: string;
+  submitted_at: string;
+  reviews?: Array<{
+    id: number;
+    feedback: string | null;
+    score: number | null;
+    result: string;
+    reviewed_at: string;
+    reviewer_name?: string;
+  }>;
+};
 
 export function ProposalSubmission() {
+  const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [history, setHistory] = useState<Proposal[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const proposalStatus = {
-    submitted: true,
-    reviewed: true,
-    approved: true,
-    score: 85,
-    feedback: '开题报告内容充实，研究方案可行，文献综述较为全面。建议在研究方法部分增加更多技术细节。',
-    reviewDate: '2025-04-20',
+  const loadHistory = async () => {
+    setLoadingHistory(true);
+    setError('');
+    try {
+      const data = await apiFetch('/api/auth/proposal/my-proposals/');
+      setHistory(data || []);
+    } catch (err: any) {
+      setError(err?.data?.detail || '加载提交历史失败');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!file) {
+      setError('请选择要上传的文件（建议PDF）');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    setMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('title', title || '开题报告');
+      formData.append('file', file);
+
+      await apiUpload('/api/auth/proposal/submit/', formData);
+      setMessage('提交成功');
+      setFile(null);
+      setTitle('');
+      await loadHistory();
+    } catch (err: any) {
+      setError(err?.data?.detail || '提交失败');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>开题报告</CardTitle>
-              <CardDescription>提交您的毕业论文开题报告</CardDescription>
-            </div>
-            {proposalStatus.submitted && (
-              <Badge className="bg-green-600">
-                <CheckCircle2 className="size-3 mr-1" />
-                已提交
-              </Badge>
-            )}
-          </div>
+          <CardTitle>开题报告</CardTitle>
+          <CardDescription>上传开题文件，教师可在线查看</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <CardContent>
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg mb-6">
             <div className="flex gap-3">
               <AlertCircle className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="text-blue-900 mb-2">开题报告要求：</p>
                 <ul className="space-y-1 text-blue-800 list-disc list-inside">
-                  <li>字数不少于3000字</li>
-                  <li>包含研究背景、研究意义、研究方案、文献综述等内容</li>
-                  <li>格式要求：PDF或Word文档</li>
-                  <li>提交截止时间：2025-04-15</li>
+                  <li>建议上传PDF格式，大小不超过20MB</li>
+                  <li>内容包含研究背景、方案与文献综述</li>
                 </ul>
               </div>
             </div>
           </div>
 
-          {proposalStatus.submitted && proposalStatus.reviewed && (
-            <Card className={proposalStatus.approved ? 'border-green-500 bg-green-50' : 'border-orange-500 bg-orange-50'}>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  {proposalStatus.approved ? (
-                    <>
-                      <CheckCircle2 className="size-5 text-green-600" />
-                      <span>审核通过</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="size-5 text-orange-600" />
-                      <span>需要修改</span>
-                    </>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <Label>评分</Label>
-                  <p className="text-2xl mt-1">{proposalStatus.score}分</p>
-                </div>
-                <div>
-                  <Label>指导教师反馈</Label>
-                  <p className="text-sm text-gray-700 mt-1 p-3 bg-white rounded border">
-                    {proposalStatus.feedback}
-                  </p>
-                </div>
-                <div>
-                  <Label>审核时间</Label>
-                  <p className="text-sm text-gray-600 mt-1">{proposalStatus.reviewDate}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <Tabs defaultValue="submit" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="submit">提交开题</TabsTrigger>
+              <TabsTrigger value="history">提交历史</TabsTrigger>
+            </TabsList>
 
-          <div className="space-y-4">
-            <div>
-              <Label>课题名称</Label>
-              <Input
-                value="基于深度学习的图像识别系统研究"
-                disabled
-                className="mt-2"
-              />
-            </div>
-
-            <div>
-              <Label>指导教师</Label>
-              <Input
-                value="李老师"
-                disabled
-                className="mt-2"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="proposal-file">上传开题报告</Label>
-              <div className="mt-2 flex gap-3">
-                <div className="flex-1">
-                  <Input
-                    id="proposal-file"
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  />
-                </div>
-                <Button disabled={proposalStatus.approved}>
-                  <Upload className="size-4 mr-2" />
-                  {proposalStatus.submitted ? '重新上传' : '上传'}
-                </Button>
+            <TabsContent value="submit" className="space-y-4">
+              <div>
+                <Label htmlFor="title">标题</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="例如：开题报告"
+                  className="mt-2"
+                />
               </div>
-              {file && (
-                <p className="text-sm text-gray-600 mt-2">
-                  已选择文件：{file.name}
-                </p>
-              )}
-            </div>
 
-            {proposalStatus.submitted && (
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <FileText className="size-8 text-blue-600" />
-                      <div>
-                        <p>开题报告_张三_20210101.pdf</p>
-                        <p className="text-sm text-gray-500">提交时间：2025-04-10</p>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="sm">
-                      <Download className="size-4 mr-2" />
-                      下载
-                    </Button>
+              <div>
+                <Label htmlFor="proposal-file">上传文件</Label>
+                <div className="mt-2 flex gap-3">
+                  <div className="flex-1">
+                    <Input
+                      id="proposal-file"
+                      type="file"
+                      accept="application/pdf,.doc,.docx"
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    />
                   </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+                  <Button onClick={handleSubmit} disabled={submitting}>
+                    <Upload className="size-4 mr-2" />
+                    {submitting ? '上传中...' : '上传'}
+                  </Button>
+                </div>
+                <p className="text-sm text-gray-500 mt-2">建议PDF格式</p>
+              </div>
 
-          <div>
-            <Label htmlFor="remarks">备注说明</Label>
-            <Textarea
-              id="remarks"
-              placeholder="如有需要，可以在此添加说明..."
-              className="mt-2 min-h-24"
-              disabled={proposalStatus.approved}
-            />
-          </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              {message && <p className="text-sm text-green-600">{message}</p>}
 
-          {!proposalStatus.approved && (
-            <Button className="w-full" size="lg">
-              提交开题报告
-            </Button>
-          )}
+              <Button className="w-full" size="lg" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? '提交中...' : '提交开题报告'}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="history" className="space-y-4">
+              {loadingHistory && <p className="text-sm text-gray-600">加载中...</p>}
+              {!loadingHistory && history.length === 0 && (
+                <div className="text-center py-8 text-gray-600">暂无提交记录</div>
+              )}
+              {history.map((item) => (
+                <Card key={item.id}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <FileText className="size-8 text-blue-600" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{item.title || '开题报告'}</CardTitle>
+                            <Badge variant="outline">开题</Badge>
+                          </div>
+                          <p className="text-sm text-gray-500 mt-1">
+                            提交时间：{new Date(item.submitted_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary">{item.status}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                      <span className="text-sm break-all">{item.title}</span>
+                      {item.file_url && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={item.file_url} target="_blank" rel="noreferrer">
+                            <Download className="size-4 mr-2" />
+                            下载
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+
+                    {item.reviews && item.reviews.length > 0 && (
+                      <div className="space-y-3">
+                        {item.reviews.map((rev) => (
+                          <div key={rev.id} className="p-4 bg-blue-50 border-l-4 border-blue-600 rounded">
+                            <div className="flex items-start gap-2">
+                              <MessageSquare className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <h4 className="text-sm font-medium mb-1">
+                                  {rev.result === 'pass' ? '✓ 通过' : rev.result === 'fail' ? '✗ 不通过' : '◐ 需修改'}
+                                </h4>
+                                <p className="text-sm text-gray-700 mb-2">{rev.feedback || '暂无反馈'}</p>
+                                {rev.score !== null && (
+                                  <p className="text-sm text-gray-600">评分：{rev.score}分</p>
+                                )}
+                                <p className="text-xs text-gray-500 mt-2">
+                                  {rev.reviewer_name && `${rev.reviewer_name} · `}
+                                  {new Date(rev.reviewed_at).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>

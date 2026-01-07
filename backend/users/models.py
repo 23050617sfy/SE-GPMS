@@ -94,3 +94,114 @@ class ThesisReview(models.Model):
 
     class Meta:
         ordering = ['-reviewed_at']
+
+
+class Proposal(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='proposals')
+    title = models.CharField(max_length=255, default='开题报告')
+    file = models.FileField(upload_to='proposal/%Y/%m/')
+    status = models.CharField(max_length=20, default='submitted')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.student.username} - Proposal'
+
+    class Meta:
+        ordering = ['-submitted_at']
+
+
+class MidtermCheck(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='midterms')
+    title = models.CharField(max_length=255, default='中期检查')
+    file = models.FileField(upload_to='midterm/%Y/%m/', blank=True, null=True)
+    status = models.CharField(max_length=20, default='submitted')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.student.username} - MidtermCheck'
+
+    class Meta:
+        ordering = ['-submitted_at']
+
+
+class ProposalReview(models.Model):
+    REVIEW_RESULT_CHOICES = (
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+        ('revise', 'Revise Required'),
+    )
+
+    proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE, related_name='reviews')
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='proposal_reviews')
+    feedback = models.TextField(blank=True, null=True)
+    score = models.IntegerField(null=True, blank=True)
+    result = models.CharField(max_length=20, choices=REVIEW_RESULT_CHOICES)
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-reviewed_at']
+
+
+class MidtermReview(models.Model):
+    REVIEW_RESULT_CHOICES = (
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+        ('revise', 'Revise Required'),
+    )
+
+    midterm = models.ForeignKey(MidtermCheck, on_delete=models.CASCADE, related_name='reviews')
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='midterm_reviews')
+    feedback = models.TextField(blank=True, null=True)
+    score = models.IntegerField(null=True, blank=True)
+    result = models.CharField(max_length=20, choices=REVIEW_RESULT_CHOICES)
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-reviewed_at']
+
+
+class Topic(models.Model):
+    TYPE_CHOICES = (
+        ('应用研究', '应用研究'),
+        ('理论研究', '理论研究'),
+        ('系统设计', '系统设计'),
+        ('算法设计', '算法设计'),
+    )
+
+    DIFFICULTY_CHOICES = (
+        ('较易', '较易'),
+        ('中等', '中等'),
+        ('较难', '较难'),
+    )
+
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='topics')
+    title = models.CharField(max_length=255)
+    type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='应用研究')
+    difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, default='中等')
+    max_students = models.IntegerField(default=1)
+    # number of students already selected/assigned for this topic
+    selected_students = models.IntegerField(default=0)
+    description = models.TextField(blank=True, null=True)
+    requirements = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.teacher.username} - {self.title}'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class TopicSelection(models.Model):
+    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='selections')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='selected_topics')
+    selected_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('topic', 'student')
+
+    def __str__(self):
+        return f'{self.student.username} -> {self.topic.title}'
