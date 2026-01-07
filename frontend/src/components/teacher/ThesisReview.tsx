@@ -267,9 +267,10 @@ export function ThesisReview() {
                     )}
 
                     {thesis.reviews && thesis.reviews.length > 0 ? (
-                      <div className="w-full py-4 text-center text-sm text-gray-600 bg-gray-50 rounded">
+                      <Button className="w-full" variant="outline" disabled>
+                        <MessageSquare className="size-4 mr-2" />
                         已审阅
-                      </div>
+                      </Button>
                     ) : (
                       <Button
                         className="w-full"

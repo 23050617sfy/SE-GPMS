@@ -149,22 +149,31 @@ class AllThesesListAPIView(generics.ListAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
-        # Only teachers and admins can see all theses
-        if self.request.user.profile.role in ['teacher', 'admin']:
+        # 管理员看所有论文，教师只看选了自己课程的学生的论文
+        if self.request.user.profile.role == 'admin':
             qs = Thesis.objects.all()
-            query = self.request.query_params.get('username')
-            if query:
-                q = query.strip()
-                # annotate concatenated last_name+first_name for full-name search
-                qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
-                qs = qs.filter(
-                    Q(student__username__icontains=q) |
-                    Q(student__first_name__icontains=q) |
-                    Q(student__last_name__icontains=q) |
-                    Q(student_full_name__icontains=q)
-                )
-            return qs
-        return Thesis.objects.none()
+        elif self.request.user.profile.role == 'teacher':
+            # 教师只能查看选了自己课程的学生的论文
+            students_with_my_topics = User.objects.filter(
+                selected_topics__topic__teacher=self.request.user
+            ).distinct()
+            qs = Thesis.objects.filter(student__in=students_with_my_topics)
+        else:
+            return Thesis.objects.none()
+        
+        # 支持按学生名称搜索
+        query = self.request.query_params.get('username')
+        if query:
+            q = query.strip()
+            # annotate concatenated last_name+first_name for full-name search
+            qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
+            qs = qs.filter(
+                Q(student__username__icontains=q) |
+                Q(student__first_name__icontains=q) |
+                Q(student__last_name__icontains=q) |
+                Q(student_full_name__icontains=q)
+            )
+        return qs
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -283,9 +292,29 @@ class AllProposalsListAPIView(generics.ListAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
-        if self.request.user.profile.role in ['teacher', 'admin']:
-            return Proposal.objects.all()
-        return Proposal.objects.none()
+        if self.request.user.profile.role == 'admin':
+            qs = Proposal.objects.all()
+        elif self.request.user.profile.role == 'teacher':
+            # 教师只能查看选了自己课程的学生的提交
+            students_with_my_topics = User.objects.filter(
+                selected_topics__topic__teacher=self.request.user
+            ).distinct()
+            qs = Proposal.objects.filter(student__in=students_with_my_topics)
+        else:
+            return Proposal.objects.none()
+        
+        # 支持按学生名称搜索
+        query = self.request.query_params.get('username')
+        if query:
+            q = query.strip()
+            qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
+            qs = qs.filter(
+                Q(student__username__icontains=q) |
+                Q(student__first_name__icontains=q) |
+                Q(student__last_name__icontains=q) |
+                Q(student_full_name__icontains=q)
+            )
+        return qs
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -299,9 +328,29 @@ class AllMidtermsListAPIView(generics.ListAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
-        if self.request.user.profile.role in ['teacher', 'admin']:
-            return MidtermCheck.objects.all()
-        return MidtermCheck.objects.none()
+        if self.request.user.profile.role == 'admin':
+            qs = MidtermCheck.objects.all()
+        elif self.request.user.profile.role == 'teacher':
+            # 教师只能查看选了自己课程的学生的提交
+            students_with_my_topics = User.objects.filter(
+                selected_topics__topic__teacher=self.request.user
+            ).distinct()
+            qs = MidtermCheck.objects.filter(student__in=students_with_my_topics)
+        else:
+            return MidtermCheck.objects.none()
+        
+        # 支持按学生名称搜索
+        query = self.request.query_params.get('username')
+        if query:
+            q = query.strip()
+            qs = qs.annotate(student_full_name=Concat('student__last_name', 'student__first_name'))
+            qs = qs.filter(
+                Q(student__username__icontains=q) |
+                Q(student__first_name__icontains=q) |
+                Q(student__last_name__icontains=q) |
+                Q(student_full_name__icontains=q)
+            )
+        return qs
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

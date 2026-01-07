@@ -45,12 +45,17 @@ export function ProposalReview() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [searchFilter, setSearchFilter] = useState('');
 
-  const loadProposals = async () => {
+  const loadProposals = async (studentName?: string) => {
     setLoading(true);
     setError('');
     try {
-      const data = await apiFetch('/api/auth/proposal/all-proposals/');
+      let url = '/api/auth/proposal/all-proposals/';
+      if (studentName && studentName.trim() !== '') {
+        url += `?username=${encodeURIComponent(studentName.trim())}`;
+      }
+      const data = await apiFetch(url);
       setProposals(Array.isArray(data) ? data : []);
     } catch (e: any) {
       setError(e?.data?.detail || '加载开题列表失败');
@@ -62,6 +67,10 @@ export function ProposalReview() {
   useEffect(() => {
     loadProposals();
   }, []);
+
+  const handleSearch = async () => {
+    await loadProposals(searchFilter);
+  };
 
   const handleReview = (proposal: Proposal) => {
     setSelectedProposal(proposal);
@@ -139,6 +148,15 @@ export function ProposalReview() {
         </CardHeader>
         <CardContent>
           {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+          <div className="flex items-center gap-2 mb-4">
+            <Input
+              placeholder="按用户名或姓名搜索（支持部分匹配）"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+            />
+            <Button onClick={handleSearch}>搜索</Button>
+            <Button variant="ghost" onClick={async () => { setSearchFilter(''); await loadProposals(); }}>重置</Button>
+          </div>
           {loading ? (
             <div className="text-center py-8 text-gray-600">加载中...</div>
           ) : proposals.length === 0 ? (

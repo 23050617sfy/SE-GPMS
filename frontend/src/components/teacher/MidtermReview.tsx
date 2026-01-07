@@ -38,12 +38,17 @@ export function MidtermReview() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [reports, setReports] = useState<Midterm[]>([]);
+  const [searchFilter, setSearchFilter] = useState('');
 
-  const loadReports = async () => {
+  const loadReports = async (studentName?: string) => {
     setLoading(true);
     setError('');
     try {
-      const data = await apiFetch('/api/auth/midterm/all-midterms/');
+      let url = '/api/auth/midterm/all-midterms/';
+      if (studentName && studentName.trim() !== '') {
+        url += `?username=${encodeURIComponent(studentName.trim())}`;
+      }
+      const data = await apiFetch(url);
       setReports(Array.isArray(data) ? data : []);
     } catch (e: any) {
       setError(e?.data?.detail || '加载中期列表失败');
@@ -55,6 +60,10 @@ export function MidtermReview() {
   useEffect(() => {
     loadReports();
   }, []);
+
+  const handleSearch = async () => {
+    await loadReports(searchFilter);
+  };
 
   const handleReview = (report: Midterm) => {
     setSelectedReport(report);
@@ -132,6 +141,15 @@ export function MidtermReview() {
         </CardHeader>
         <CardContent>
           {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+          <div className="flex items-center gap-2 mb-4">
+            <Input
+              placeholder="按用户名或姓名搜索（支持部分匹配）"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+            />
+            <Button onClick={handleSearch}>搜索</Button>
+            <Button variant="ghost" onClick={async () => { setSearchFilter(''); await loadReports(); }}>重置</Button>
+          </div>
           {loading ? (
             <div className="text-center py-8 text-gray-600">加载中...</div>
           ) : reports.length === 0 ? (
