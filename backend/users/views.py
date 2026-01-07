@@ -8,6 +8,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ThesisSerializer, ThesisReviewSerializer
 from .models import Thesis, ThesisReview
+from .serializers import TopicSerializer
+from .models import Topic
 from django.db.models import Q
 from django.db.models.functions import Concat
 from rest_framework.permissions import IsAuthenticated
@@ -192,3 +194,74 @@ class ThesisReviewAPIView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(reviewer=self.request.user)
+
+
+class TopicListCreateAPIView(generics.ListCreateAPIView):
+    serializer_class = TopicSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        # For now, return topics owned by the current user when listing
+        return Topic.objects.filter(teacher=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        # Only teachers may create topics
+        if request.user.profile.role != 'teacher':
+            return Response({'detail': 'Only teachers can create topics'}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(teacher=self.request.user)
+
+
+class TopicDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = TopicSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_object(self):
+        pk = self.kwargs.get('pk')
+        try:
+            return Topic.objects.get(id=pk)
+        except Topic.DoesNotExist:
+            return None
+
+    def retrieve(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(self.get_serializer(obj).data)
+
+    def update(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Only the owner teacher or admin can update
+        if request.user != obj.teacher and request.user.profile.role != 'admin':
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Prevent deletion if students have been selected
+        if obj.selected_students and obj.selected_students > 0:
+            return Response({'detail': 'Cannot delete topic with selected students'}, status=status.HTTP_400_BAD_REQUEST)
+        if request.user != obj.teacher and request.user.profile.role != 'admin':
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MyTopicsListAPIView(generics.ListAPIView):
+    serializer_class = TopicSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        # Only teachers can have topics
+        if self.request.user.profile.role == 'teacher':
+            return Topic.objects.filter(teacher=self.request.user)
+        return Topic.objects.none()

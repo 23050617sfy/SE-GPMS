@@ -94,3 +94,36 @@ class ThesisReview(models.Model):
 
     class Meta:
         ordering = ['-reviewed_at']
+
+
+class Topic(models.Model):
+    TYPE_CHOICES = (
+        ('应用研究', '应用研究'),
+        ('理论研究', '理论研究'),
+        ('系统设计', '系统设计'),
+        ('算法设计', '算法设计'),
+    )
+
+    DIFFICULTY_CHOICES = (
+        ('较易', '较易'),
+        ('中等', '中等'),
+        ('较难', '较难'),
+    )
+
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='topics')
+    title = models.CharField(max_length=255)
+    type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='应用研究')
+    difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, default='中等')
+    max_students = models.IntegerField(default=1)
+    # number of students already selected/assigned for this topic
+    selected_students = models.IntegerField(default=0)
+    description = models.TextField(blank=True, null=True)
+    requirements = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.teacher.username} - {self.title}'
+
+    class Meta:
+        ordering = ['-created_at']

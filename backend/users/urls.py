@@ -5,6 +5,7 @@ from .views import (
     StudentThesesListAPIView, AllThesesListAPIView,
     ThesisReviewAPIView
 )
+from .views import TopicListCreateAPIView, TopicDetailAPIView, MyTopicsListAPIView
 
 urlpatterns = [
     path('register/', RegisterAPIView.as_view(), name='register'),
@@ -15,4 +16,8 @@ urlpatterns = [
     path('thesis/my-thesis/', StudentThesesListAPIView.as_view(), name='my_thesis'),
     path('thesis/all-theses/', AllThesesListAPIView.as_view(), name='all_theses'),
     path('thesis/<int:thesis_id>/review/', ThesisReviewAPIView.as_view(), name='thesis_review'),
+    # Topic endpoints for teacher topic management
+    path('topics/my-topics/', MyTopicsListAPIView.as_view(), name='my_topics'),
+    path('topics/', TopicListCreateAPIView.as_view(), name='topics_list_create'),
+    path('topics/<int:pk>/', TopicDetailAPIView.as_view(), name='topic_detail'),
 ]

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import Profile, Thesis, ThesisReview
+from .models import Topic
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -97,3 +98,21 @@ class ThesisSerializer(serializers.ModelSerializer):
         if full_name:
             return full_name
         return obj.student.username
+
+
+class TopicSerializer(serializers.ModelSerializer):
+    teacher_id = serializers.CharField(source='teacher.username', read_only=True)
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Topic
+        fields = ('id', 'teacher_id', 'title', 'type', 'difficulty', 'max_students', 'selected_students', 'status', 'description', 'requirements', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'teacher_id', 'selected_students', 'status', 'created_at', 'updated_at')
+
+    def get_status(self, obj):
+        try:
+            if obj.selected_students >= (obj.max_students or 1):
+                return 'full'
+        except Exception:
+            pass
+        return 'open'
