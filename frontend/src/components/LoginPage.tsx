@@ -36,11 +36,18 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       });
 
       // res: { token, user: { student_id, email, role } }
+      const serverRole = (res.user.role || '') as 'student' | 'teacher' | 'admin';
+      if (serverRole !== role) {
+        setError('所选角色与账户角色不匹配。');
+        setLoading(false);
+        return;
+      }
+
       localStorage.setItem('token', res.token);
       const user = {
         id: res.user.student_id || res.user.id || res.user.email || '',
-        name: res.user.email || res.user.student_id || '',
-        role: res.user.role as 'student' | 'teacher' | 'admin',
+        name: res.user.name || res.user.email || res.user.student_id || '',
+        role: serverRole,
         email: res.user.email || '',
       };
       onLogin(user);
@@ -106,11 +113,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 className="space-y-4"
               >
                 <div className="space-y-2">
-                  <Label htmlFor="student-email">学号/邮箱</Label>
+                  <Label htmlFor="student-email">学号</Label>
                   <Input
                     id="student-email"
                     type="text"
-                    placeholder="输入学号或邮箱"
+                    placeholder="输入学号"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -139,11 +146,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 className="space-y-4"
               >
                 <div className="space-y-2">
-                  <Label htmlFor="teacher-email">工号/邮箱</Label>
+                  <Label htmlFor="teacher-email">工号</Label>
                   <Input
                     id="teacher-email"
                     type="text"
-                    placeholder="输入工号或邮箱"
+                    placeholder="输入工号"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
