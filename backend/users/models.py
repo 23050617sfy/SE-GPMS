@@ -127,3 +127,15 @@ class Topic(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class TopicSelection(models.Model):
+    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='selections')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='selected_topics')
+    selected_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('topic', 'student')
+
+    def __str__(self):
+        return f'{self.student.username} -> {self.topic.title}'

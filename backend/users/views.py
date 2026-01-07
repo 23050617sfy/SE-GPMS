@@ -6,8 +6,8 @@ from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ThesisSerializer, ThesisReviewSerializer
-from .models import Thesis, ThesisReview
+from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ThesisSerializer, ThesisReviewSerializer, TopicSerializer
+from .models import Thesis, ThesisReview, Topic, TopicSelection
 from .serializers import TopicSerializer
 from .models import Topic
 from django.db.models import Q
@@ -202,8 +202,17 @@ class TopicListCreateAPIView(generics.ListCreateAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
-        # For now, return topics owned by the current user when listing
-        return Topic.objects.filter(teacher=self.request.user)
+        # GET: students see all topics; teachers see their own topics
+        user = self.request.user
+        if user.profile.role == 'teacher':
+            return Topic.objects.filter(teacher=user)
+        # student or admin: show all topics
+        return Topic.objects.all()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
     def create(self, request, *args, **kwargs):
         # Only teachers may create topics
@@ -255,6 +264,57 @@ class TopicDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class TopicSelectAPIView(APIView):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, pk, *args, **kwargs):
+        # only students may select
+        if request.user.profile.role != 'student':
+            return Response({'detail': 'Only students can select topics'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            topic = Topic.objects.get(id=pk)
+        except Topic.DoesNotExist:
+            return Response({'detail': 'Topic not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # check if student already selected any topic
+        if TopicSelection.objects.filter(student=request.user).exists():
+            return Response({'detail': '学生已选择过课题，不能重复选择'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # check capacity
+        if topic.selected_students >= (topic.max_students or 1):
+            return Response({'detail': '课题已满'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # create selection
+        sel = TopicSelection.objects.create(topic=topic, student=request.user)
+        # increment counter
+        topic.selected_students = (topic.selected_students or 0) + 1
+        topic.save()
+        return Response({'detail': '选择成功'}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, pk, *args, **kwargs):
+        # only students may deselect
+        if request.user.profile.role != 'student':
+            return Response({'detail': 'Only students can deselect topics'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            topic = Topic.objects.get(id=pk)
+        except Topic.DoesNotExist:
+            return Response({'detail': 'Topic not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # find and delete the selection
+        try:
+            selection = TopicSelection.objects.get(topic=topic, student=request.user)
+            selection.delete()
+            # decrement counter
+            topic.selected_students = max(0, (topic.selected_students or 1) - 1)
+            topic.save()
+            return Response({'detail': '取消选择成功'}, status=status.HTTP_200_OK)
+        except TopicSelection.DoesNotExist:
+            return Response({'detail': '未选择此课题'}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class MyTopicsListAPIView(generics.ListAPIView):
     serializer_class = TopicSerializer
     authentication_classes = (TokenAuthentication,)
@@ -265,3 +325,36 @@ class MyTopicsListAPIView(generics.ListAPIView):
         if self.request.user.profile.role == 'teacher':
             return Topic.objects.filter(teacher=self.request.user)
         return Topic.objects.none()
+
+
+class TopicStudentsAPIView(APIView):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, pk, *args, **kwargs):
+        try:
+            topic = Topic.objects.get(id=pk)
+        except Topic.DoesNotExist:
+            return Response({'detail': 'Topic not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only topic owner or admin can view students
+        if request.user != topic.teacher and request.user.profile.role != 'admin':
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get all students who selected this topic
+        selections = TopicSelection.objects.filter(topic=topic).select_related('student')
+        students = []
+        for sel in selections:
+            first = getattr(sel.student, 'first_name', '') or ''
+            last = getattr(sel.student, 'last_name', '') or ''
+            full_name = (last + first).strip()
+            if not full_name:
+                full_name = sel.student.get_full_name().strip() or sel.student.username
+            students.append({
+                'id': sel.student.id,
+                'student_id': sel.student.username,
+                'name': full_name,
+                'email': sel.student.email,
+                'selected_at': sel.selected_at,
+            })
+        return Response({'students': students, 'count': len(students)}, status=status.HTTP_200_OK)

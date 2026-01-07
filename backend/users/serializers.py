@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import Profile, Thesis, ThesisReview
-from .models import Topic
+from .models import Topic, TopicSelection
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -102,12 +102,27 @@ class ThesisSerializer(serializers.ModelSerializer):
 
 class TopicSerializer(serializers.ModelSerializer):
     teacher_id = serializers.CharField(source='teacher.username', read_only=True)
+    teacher_name = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
+    is_selected = serializers.SerializerMethodField()
 
     class Meta:
         model = Topic
-        fields = ('id', 'teacher_id', 'title', 'type', 'difficulty', 'max_students', 'selected_students', 'status', 'description', 'requirements', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'teacher_id', 'selected_students', 'status', 'created_at', 'updated_at')
+        fields = ('id', 'teacher_id', 'teacher_name', 'title', 'type', 'difficulty', 'max_students', 'selected_students', 'status', 'description', 'requirements', 'is_selected', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'teacher_id', 'teacher_name', 'selected_students', 'status', 'is_selected', 'created_at', 'updated_at')
+
+    def get_teacher_name(self, obj):
+        # For Chinese names prefer last_name + first_name without space
+        first = getattr(obj.teacher, 'first_name', '') or ''
+        last = getattr(obj.teacher, 'last_name', '') or ''
+        full = (last + first).strip()
+        if full:
+            return full
+        # fallback to get_full_name or username
+        full_name = obj.teacher.get_full_name().strip()
+        if full_name:
+            return full_name
+        return obj.teacher.username
 
     def get_status(self, obj):
         try:
@@ -116,3 +131,11 @@ class TopicSerializer(serializers.ModelSerializer):
         except Exception:
             pass
         return 'open'
+
+    def get_is_selected(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        user = request.user
+        # student selected this topic?
+        return TopicSelection.objects.filter(topic=obj, student=user).exists()

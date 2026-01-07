@@ -5,7 +5,8 @@ from .views import (
     StudentThesesListAPIView, AllThesesListAPIView,
     ThesisReviewAPIView
 )
-from .views import TopicListCreateAPIView, TopicDetailAPIView, MyTopicsListAPIView
+from .views import TopicListCreateAPIView, TopicDetailAPIView, MyTopicsListAPIView, TopicStudentsAPIView
+from .views import TopicSelectAPIView
 
 urlpatterns = [
     path('register/', RegisterAPIView.as_view(), name='register'),
@@ -20,4 +21,6 @@ urlpatterns = [
     path('topics/my-topics/', MyTopicsListAPIView.as_view(), name='my_topics'),
     path('topics/', TopicListCreateAPIView.as_view(), name='topics_list_create'),
     path('topics/<int:pk>/', TopicDetailAPIView.as_view(), name='topic_detail'),
+    path('topics/<int:pk>/select/', TopicSelectAPIView.as_view(), name='topic_select'),
+    path('topics/<int:pk>/students/', TopicStudentsAPIView.as_view(), name='topic_students'),
 ]

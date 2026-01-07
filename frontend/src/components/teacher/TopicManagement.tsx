@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
-import { Plus, Edit, Trash2, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, Eye } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -30,10 +30,14 @@ type Topic = {
 
 export function TopicManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [studentsDialogOpen, setStudentsDialogOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
+  const [selectedTopicForStudents, setSelectedTopicForStudents] = useState<Topic | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [students, setStudents] = useState<any[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
   const [title, setTitle] = useState('');
   const [typeVal, setTypeVal] = useState('应用研究');
@@ -129,6 +133,21 @@ export function TopicManagement() {
     }
   };
 
+  const openStudentsDialog = async (t: Topic) => {
+    setSelectedTopicForStudents(t);
+    setLoadingStudents(true);
+    setStudents([]);
+    try {
+      const data = await apiFetch(`/api/auth/topics/${t.id}/students/`);
+      setStudents(data.students || []);
+      setStudentsDialogOpen(true);
+    } catch (err: any) {
+      setError(err?.data?.detail || (err?.data || err?.toString()) || '加载学生信息失败');
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -183,6 +202,16 @@ export function TopicManagement() {
                         >
                           <Edit className="size-4" />
                         </Button>
+                        {(topic.selected_students || 0) > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openStudentsDialog(topic)}
+                          >
+                            <Eye className="size-4 mr-1" />
+                            查看学生
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -203,14 +232,6 @@ export function TopicManagement() {
                       <h4 className="text-sm mb-1">学生要求：</h4>
                       <p className="text-sm text-gray-600">{topic.requirements}</p>
                     </div>
-                    {topic.selected_students && topic.selected_students > 0 && (
-                      <div className="pt-3 border-t">
-                        <h4 className="text-sm mb-2">已选学生：</h4>
-                        <div className="p-3 bg-blue-50 rounded">
-                          <p className="text-sm">若已被选中，将在此展示已选学生信息</p>
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               ))
@@ -219,6 +240,48 @@ export function TopicManagement() {
         </CardContent>
       </Card>
 
+      {/* 学生列表对话框 */}
+      <Dialog open={studentsDialogOpen} onOpenChange={setStudentsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>已选学生 - {selectedTopicForStudents?.title}</DialogTitle>
+            <DialogDescription>
+              共 {students.length} 名学生选择了此课题
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {loadingStudents && <p className="text-sm text-gray-600">加载中...</p>}
+            {students.length === 0 && !loadingStudents && (
+              <p className="text-sm text-gray-600">暂无学生选择</p>
+            )}
+            {students.length > 0 && (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {students.map((student, idx) => (
+                  <div key={idx} className="p-3 border rounded-lg bg-gray-50">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">{student.name}</p>
+                        <p className="text-sm text-gray-600">学号: {student.student_id}</p>
+                        <p className="text-sm text-gray-600">邮箱: {student.email}</p>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {new Date(student.selected_at).toLocaleDateString('zh-CN')}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStudentsDialogOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑/新建课题对话框 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
