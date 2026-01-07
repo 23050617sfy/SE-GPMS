@@ -113,11 +113,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 className="space-y-4"
               >
                 <div className="space-y-2">
-                  <Label htmlFor="student-email">学号/邮箱</Label>
+                  <Label htmlFor="student-email">学号</Label>
                   <Input
                     id="student-email"
                     type="text"
-                    placeholder="输入学号或邮箱"
+                    placeholder="输入学号"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -146,11 +146,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 className="space-y-4"
               >
                 <div className="space-y-2">
-                  <Label htmlFor="teacher-email">工号/邮箱</Label>
+                  <Label htmlFor="teacher-email">工号</Label>
                   <Input
                     id="teacher-email"
                     type="text"
-                    placeholder="输入工号或邮箱"
+                    placeholder="输入工号"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
