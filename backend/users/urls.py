@@ -5,7 +5,9 @@ from .views import (
     StudentThesesListAPIView, AllThesesListAPIView,
     ThesisReviewAPIView,
     ProposalSubmitAPIView, MyProposalsListAPIView,
+    AllProposalsListAPIView, ProposalReviewAPIView,
     MidtermSubmitAPIView, MyMidtermsListAPIView,
+    AllMidtermsListAPIView, MidtermReviewAPIView,
 )
 from .views import TopicListCreateAPIView, TopicDetailAPIView, MyTopicsListAPIView, TopicStudentsAPIView
 from .views import TopicSelectAPIView
@@ -22,9 +24,13 @@ urlpatterns = [
     # Proposal submission endpoints
     path('proposal/submit/', ProposalSubmitAPIView.as_view(), name='proposal_submit'),
     path('proposal/my-proposals/', MyProposalsListAPIView.as_view(), name='my_proposals'),
+    path('proposal/all-proposals/', AllProposalsListAPIView.as_view(), name='all_proposals'),
+    path('proposal/<int:proposal_id>/review/', ProposalReviewAPIView.as_view(), name='proposal_review'),
     # Midterm submission endpoints
     path('midterm/submit/', MidtermSubmitAPIView.as_view(), name='midterm_submit'),
     path('midterm/my-midterms/', MyMidtermsListAPIView.as_view(), name='my_midterms'),
+    path('midterm/all-midterms/', AllMidtermsListAPIView.as_view(), name='all_midterms'),
+    path('midterm/<int:midterm_id>/review/', MidtermReviewAPIView.as_view(), name='midterm_review'),
     # Topic endpoints for teacher topic management
     path('topics/my-topics/', MyTopicsListAPIView.as_view(), name='my_topics'),
     path('topics/', TopicListCreateAPIView.as_view(), name='topics_list_create'),

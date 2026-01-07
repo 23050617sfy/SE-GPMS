@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Upload, FileText, Download, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Download, AlertCircle, MessageSquare } from 'lucide-react';
 import { apiFetch, apiUpload } from '../../utils/api';
 
 type Midterm = {
@@ -15,6 +15,14 @@ type Midterm = {
   file_url?: string | null;
   status: string;
   submitted_at: string;
+  reviews?: Array<{
+    id: number;
+    feedback: string | null;
+    score: number | null;
+    result: string;
+    reviewed_at: string;
+    reviewer_name?: string;
+  }>;
 };
 
 export function MidtermCheck() {
@@ -170,6 +178,31 @@ export function MidtermCheck() {
                         </Button>
                       )}
                     </div>
+
+                    {item.reviews && item.reviews.length > 0 && (
+                      <div className="space-y-3">
+                        {item.reviews.map((rev) => (
+                          <div key={rev.id} className="p-4 bg-blue-50 border-l-4 border-blue-600 rounded">
+                            <div className="flex items-start gap-2">
+                              <MessageSquare className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <h4 className="text-sm font-medium mb-1">
+                                  {rev.result === 'pass' ? '✓ 通过' : rev.result === 'fail' ? '✗ 不通过' : '◐ 需修改'}
+                                </h4>
+                                <p className="text-sm text-gray-700 mb-2">{rev.feedback || '暂无反馈'}</p>
+                                {rev.score !== null && (
+                                  <p className="text-sm text-gray-600">评分：{rev.score}分</p>
+                                )}
+                                <p className="text-xs text-gray-500 mt-2">
+                                  {rev.reviewer_name && `${rev.reviewer_name} · `}
+                                  {new Date(rev.reviewed_at).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

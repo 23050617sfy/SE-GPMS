@@ -8,6 +8,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ThesisSerializer, ThesisReviewSerializer, TopicSerializer
 from .serializers import ProposalSerializer, MidtermCheckSerializer
+from .serializers import ProposalReviewSerializer, MidtermReviewSerializer
 from .models import Thesis, ThesisReview, Topic, TopicSelection
 from .models import Proposal, MidtermCheck
 from .serializers import TopicSerializer
@@ -274,6 +275,84 @@ class MyMidtermsListAPIView(generics.ListAPIView):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
+
+class AllProposalsListAPIView(generics.ListAPIView):
+    serializer_class = ProposalSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        if self.request.user.profile.role in ['teacher', 'admin']:
+            return Proposal.objects.all()
+        return Proposal.objects.none()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class AllMidtermsListAPIView(generics.ListAPIView):
+    serializer_class = MidtermCheckSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        if self.request.user.profile.role in ['teacher', 'admin']:
+            return MidtermCheck.objects.all()
+        return MidtermCheck.objects.none()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class ProposalReviewAPIView(generics.CreateAPIView):
+    serializer_class = ProposalReviewSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def create(self, request, proposal_id, *args, **kwargs):
+        if request.user.profile.role not in ['teacher', 'admin']:
+            return Response({'detail': 'Only teachers can review proposals'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            Proposal.objects.get(id=proposal_id)
+        except Proposal.DoesNotExist:
+            return Response({'detail': 'Proposal not found'}, status=status.HTTP_404_NOT_FOUND)
+        data = request.data.copy()
+        data['proposal'] = proposal_id
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        serializer.save(reviewer=self.request.user)
+
+
+class MidtermReviewAPIView(generics.CreateAPIView):
+    serializer_class = MidtermReviewSerializer
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def create(self, request, midterm_id, *args, **kwargs):
+        if request.user.profile.role not in ['teacher', 'admin']:
+            return Response({'detail': 'Only teachers can review midterms'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            MidtermCheck.objects.get(id=midterm_id)
+        except MidtermCheck.DoesNotExist:
+            return Response({'detail': 'Midterm not found'}, status=status.HTTP_404_NOT_FOUND)
+        data = request.data.copy()
+        data['midterm'] = midterm_id
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        serializer.save(reviewer=self.request.user)
 
 
 class TopicListCreateAPIView(generics.ListCreateAPIView):

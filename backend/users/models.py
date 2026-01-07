@@ -126,6 +126,42 @@ class MidtermCheck(models.Model):
         ordering = ['-submitted_at']
 
 
+class ProposalReview(models.Model):
+    REVIEW_RESULT_CHOICES = (
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+        ('revise', 'Revise Required'),
+    )
+
+    proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE, related_name='reviews')
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='proposal_reviews')
+    feedback = models.TextField(blank=True, null=True)
+    score = models.IntegerField(null=True, blank=True)
+    result = models.CharField(max_length=20, choices=REVIEW_RESULT_CHOICES)
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-reviewed_at']
+
+
+class MidtermReview(models.Model):
+    REVIEW_RESULT_CHOICES = (
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+        ('revise', 'Revise Required'),
+    )
+
+    midterm = models.ForeignKey(MidtermCheck, on_delete=models.CASCADE, related_name='reviews')
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='midterm_reviews')
+    feedback = models.TextField(blank=True, null=True)
+    score = models.IntegerField(null=True, blank=True)
+    result = models.CharField(max_length=20, choices=REVIEW_RESULT_CHOICES)
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-reviewed_at']
+
+
 class Topic(models.Model):
     TYPE_CHOICES = (
         ('应用研究', '应用研究'),
