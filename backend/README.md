@@ -16,6 +16,7 @@ pip install -r requirements.txt
 cd backend
 python manage.py migrate
 python manage.py createsuperuser  # 可选，用于 admin
+python manage.py seed_demo_data	  # 可选，用于 导入测试数据
 python manage.py runserver 0.0.0.0:8000
 ```
 

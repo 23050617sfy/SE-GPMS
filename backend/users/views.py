@@ -21,6 +21,8 @@ from rest_framework.authentication import TokenAuthentication
 
 class RegisterAPIView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
+    permission_classes = []  # Allow any access
+    authentication_classes = []  # No authentication required
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -35,6 +37,9 @@ class RegisterAPIView(generics.CreateAPIView):
 
 
 class LoginAPIView(APIView):
+    permission_classes = []  # Allow any access
+    authentication_classes = []  # No authentication required
+    
     def post(self, request, *args, **kwargs):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
